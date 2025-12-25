@@ -83,12 +83,6 @@ function App() {
     setSelectedImage(imageData);
     setChartData(null);
     setError(null);
-
-    if (imageData) {
-      if (!apiKey) {
-        setShowSettings(true);
-      }
-    }
   };
 
   const handleBrandSelect = (brand) => {
@@ -316,16 +310,16 @@ function App() {
                   <Key className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg">API Configuration</h3>
-                  <p className="text-xs text-gray-500">Google Gemini API Key</p>
+                  <h3 className="font-bold text-lg">Custom OCR Settings</h3>
+                  <p className="text-xs text-gray-500">Private API Authentication</p>
                 </div>
               </div>
               <p className="text-sm text-gray-400">
-                Enter your API key to unlock AI-powered features. Your key is stored securely in your browser.
+                You can use the default public key for free, or enter your private OCR API key if you have a custom deployment.
               </p>
               <input
                 type="password"
-                placeholder="sk-..."
+                placeholder="ocr_..."
                 className="w-full px-4 py-3 border border-white/10 rounded-xl bg-white/5 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
@@ -475,23 +469,13 @@ function App() {
 
                 {selectedImage && !chartData && !isProcessing && (
                   <div className="space-y-3">
-                    {!apiKey ? (
-                      <button
-                        onClick={() => setShowSettings(true)}
-                        className="w-full py-3 px-4 bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 text-violet-400 rounded-xl font-medium hover:from-violet-500/20 hover:to-fuchsia-500/20 transition-all flex items-center justify-center gap-2"
-                      >
-                        <Key className="w-4 h-4" />
-                        Add API Key First
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => processImage(selectedImage)}
-                        className="w-full py-3.5 px-4 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-xl font-semibold hover:from-violet-600 hover:to-fuchsia-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/25"
-                      >
-                        <Wand2 className="w-5 h-5" />
-                        Generate Size Chart
-                      </button>
-                    )}
+                    <button
+                      onClick={() => processImage(selectedImage)}
+                      className="w-full py-3.5 px-4 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-xl font-semibold hover:from-violet-600 hover:to-fuchsia-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/25"
+                    >
+                      <Wand2 className="w-5 h-5" />
+                      Generate Size Chart
+                    </button>
                   </div>
                 )}
 
