@@ -24,6 +24,7 @@ function App() {
   const [sku, setSku] = useState(null);
   const [selectedElement, setSelectedElement] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState('upload');
   const [chartStyles, setChartStyles] = useState({
     scale: 1,
     x: 0,
