@@ -1,52 +1,75 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Save, Undo, Redo, Check, GripVertical } from 'lucide-react';
-import { Reorder, useDragControls } from 'framer-motion';
+import { Reorder, useDragControls, AnimatePresence, motion } from 'framer-motion';
 
-// Draggable Row Component
-function DraggableRow({ row, rowIndex, headers, handleDataChange, removeRow }) {
+// Draggable Row Component - uses div-based layout for smooth reordering
+function DraggableRow({ row, rowIndex, headers, handleDataChange, removeRow, rowId }) {
     const dragControls = useDragControls();
 
     return (
         <Reorder.Item
             value={row}
-            id={`row-${rowIndex}`}
+            id={rowId}
             dragListener={false}
             dragControls={dragControls}
-            className="border-t border-white/5 hover:bg-white/5 transition-colors group flex items-center"
-            style={{ display: 'table-row' }}
+            className="flex items-center border-t border-white/5 hover:bg-white/5 transition-colors group bg-transparent"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
             whileDrag={{
-                backgroundColor: 'rgba(250, 204, 21, 0.1)',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                zIndex: 50
+                scale: 1.02,
+                backgroundColor: 'rgba(250, 204, 21, 0.15)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+                zIndex: 50,
+                cursor: 'grabbing'
             }}
+            transition={{
+                type: 'spring',
+                stiffness: 400,
+                damping: 30,
+                mass: 0.8
+            }}
+            layout
+            layoutId={rowId}
         >
-            <td className="px-1 py-1.5 w-6">
+            {/* Drag Handle */}
+            <div className="w-8 flex-shrink-0 px-1 py-2">
                 <button
-                    onPointerDown={(e) => dragControls.start(e)}
-                    className="cursor-grab active:cursor-grabbing p-1 text-gray-600 hover:text-yellow-500 transition-colors touch-none"
+                    onPointerDown={(e) => {
+                        e.preventDefault();
+                        dragControls.start(e);
+                    }}
+                    className="cursor-grab active:cursor-grabbing p-1.5 text-gray-600 hover:text-yellow-500 transition-colors touch-none rounded hover:bg-white/10"
                     title="Drag to reorder"
                 >
-                    <GripVertical className="w-3 h-3" />
+                    <GripVertical className="w-3.5 h-3.5" />
                 </button>
-            </td>
+            </div>
+
+            {/* Data Cells */}
             {headers.map((header, colIndex) => (
-                <td key={`${rowIndex}-${colIndex}`} className="px-3 py-1.5">
+                <div
+                    key={`${rowId}-${colIndex}`}
+                    className="flex-1 min-w-[70px] px-2 py-1.5"
+                >
                     <input
                         type="text"
                         value={row[header] || ''}
                         onChange={(e) => handleDataChange(rowIndex, header, e.target.value)}
                         className="w-full bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-yellow-500/50 rounded px-1.5 py-1 text-gray-200 text-xs"
                     />
-                </td>
+                </div>
             ))}
-            <td className="px-2 py-1.5 text-center">
+
+            {/* Delete Button */}
+            <div className="w-10 flex-shrink-0 px-2 py-1.5 text-center">
                 <button
                     onClick={() => removeRow(rowIndex)}
-                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1"
+                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1 rounded hover:bg-red-400/10"
                 >
                     <Trash2 className="w-3.5 h-3.5" />
                 </button>
-            </td>
+            </div>
         </Reorder.Item>
     );
 }
@@ -54,6 +77,11 @@ function DraggableRow({ row, rowIndex, headers, handleDataChange, removeRow }) {
 export function DataEditor({ initialData, onSave }) {
     const [headers, setHeaders] = useState(initialData.headers || []);
     const [data, setData] = useState(initialData.data || []);
+
+    // Give each row a unique ID for tracking during reorder
+    const [rowIds, setRowIds] = useState(() =>
+        (initialData.data || []).map((_, i) => `row-${Date.now()}-${i}`)
+    );
 
     // Undo/Redo state management
     const history = useRef([{ headers: initialData.headers || [], data: initialData.data || [] }]);
@@ -64,6 +92,7 @@ export function DataEditor({ initialData, onSave }) {
     useEffect(() => {
         setHeaders(initialData.headers || []);
         setData(initialData.data || []);
+        setRowIds((initialData.data || []).map((_, i) => `row-${Date.now()}-${i}`));
         history.current = [{ headers: initialData.headers || [], data: initialData.data || [] }];
         historyIndex.current = 0;
         setCanUndo(false);
@@ -137,15 +166,19 @@ export function DataEditor({ initialData, onSave }) {
             newRow[header] = '';
         });
         const newData = [...data, newRow];
+        const newRowIds = [...rowIds, `row-${Date.now()}`];
         addToHistory(headers, newData);
         setData(newData);
+        setRowIds(newRowIds);
         onSave({ headers, data: newData });
     };
 
     const removeRow = (index) => {
         const newData = data.filter((_, i) => i !== index);
+        const newRowIds = rowIds.filter((_, i) => i !== index);
         addToHistory(headers, newData);
         setData(newData);
+        setRowIds(newRowIds);
         onSave({ headers, data: newData });
     };
 
@@ -174,8 +207,15 @@ export function DataEditor({ initialData, onSave }) {
 
     // Handle row reorder from drag-and-drop
     const handleReorder = (reorderedData) => {
+        // Find new order of row IDs based on data order
+        const newRowIds = reorderedData.map(row => {
+            const originalIndex = data.findIndex(d => d === row);
+            return rowIds[originalIndex];
+        });
+
         addToHistory(headers, reorderedData);
         setData(reorderedData);
+        setRowIds(newRowIds);
         onSave({ headers, data: reorderedData });
     };
 
@@ -234,51 +274,56 @@ export function DataEditor({ initialData, onSave }) {
                 </button>
             </div>
 
-            {/* Data Table with Draggable Rows */}
-            <div className="overflow-x-auto rounded-xl border border-white/5">
-                <table className="w-full text-sm text-left">
-                    <thead className="text-[10px] text-gray-500 uppercase bg-slate-800/50">
-                        <tr>
-                            <th className="px-1 py-2.5 w-6"></th>
-                            {headers.map((header, index) => (
-                                <th key={index} className="px-3 py-2.5 min-w-[80px] group relative">
-                                    <div className="flex items-center gap-1">
-                                        <input
-                                            type="text"
-                                            value={header}
-                                            onChange={(e) => handleHeaderChange(index, e.target.value)}
-                                            className="bg-transparent border-none focus:outline-none focus:ring-0 w-full font-semibold text-gray-300 text-xs"
-                                        />
-                                        <button
-                                            onClick={() => removeColumn(index)}
-                                            className="opacity-0 group-hover:opacity-100 text-red-400 hover:bg-red-400/10 p-1 rounded transition-all"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                </th>
-                            ))}
-                            <th className="px-2 py-2.5 w-8"></th>
-                        </tr>
-                    </thead>
-                    <Reorder.Group
-                        as="tbody"
-                        axis="y"
-                        values={data}
-                        onReorder={handleReorder}
-                    >
+            {/* Data Table with Div-based Layout for Smooth Reordering */}
+            <div className="overflow-x-auto rounded-xl border border-white/5 bg-slate-900/30">
+                {/* Header Row */}
+                <div className="flex items-center text-[10px] text-gray-500 uppercase bg-slate-800/50 border-b border-white/5">
+                    <div className="w-8 flex-shrink-0 px-1 py-2.5"></div>
+                    {headers.map((header, index) => (
+                        <div key={index} className="flex-1 min-w-[70px] px-2 py-2.5 group relative">
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="text"
+                                    value={header}
+                                    onChange={(e) => handleHeaderChange(index, e.target.value)}
+                                    className="bg-transparent border-none focus:outline-none focus:ring-0 w-full font-semibold text-gray-300 text-xs"
+                                />
+                                <button
+                                    onClick={() => removeColumn(index)}
+                                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:bg-red-400/10 p-1 rounded transition-all"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    <div className="w-10 flex-shrink-0 px-2 py-2.5"></div>
+                </div>
+
+                {/* Draggable Rows */}
+                <Reorder.Group
+                    axis="y"
+                    values={data}
+                    onReorder={handleReorder}
+                    className="w-full"
+                    layoutScroll
+                >
+                    <AnimatePresence mode="popLayout">
                         {data.map((row, rowIndex) => (
                             <DraggableRow
-                                key={rowIndex}
+                                key={rowIds[rowIndex] || `row-${rowIndex}`}
                                 row={row}
                                 rowIndex={rowIndex}
+                                rowId={rowIds[rowIndex] || `row-${rowIndex}`}
                                 headers={headers}
                                 handleDataChange={handleDataChange}
                                 removeRow={removeRow}
                             />
                         ))}
-                    </Reorder.Group>
-                </table>
+                    </AnimatePresence>
+                </Reorder.Group>
+
+                {/* Empty State */}
                 {data.length === 0 && (
                     <div className="text-center py-8 text-gray-500 text-sm">
                         No data yet. Add rows and columns to start.
@@ -286,8 +331,8 @@ export function DataEditor({ initialData, onSave }) {
                 )}
             </div>
 
-            <p className="text-[10px] text-gray-600">
-                <GripVertical className="w-3 h-3 inline mr-1" />
+            <p className="text-[10px] text-gray-600 flex items-center gap-1">
+                <GripVertical className="w-3 h-3" />
                 Drag rows to reorder • Double-click cells in preview for inline editing
             </p>
         </div>

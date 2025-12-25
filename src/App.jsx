@@ -379,15 +379,9 @@ function App() {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4 group cursor-default">
             <img src="/logo.svg" className="w-10 h-10 object-contain group-hover:scale-110 transition-all duration-500" alt="Favicon" />
-            <div className="flex flex-col">
-              <h1 className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">
-                SIZE CHART <span className="text-yellow-500">PRO</span>
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em]">Neural Engine Active</p>
-              </div>
-            </div>
+            <h1 className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">
+              SIZE CHART <span className="text-yellow-500">PRO</span>
+            </h1>
           </div>
         </div>
 
@@ -407,79 +401,18 @@ function App() {
             </button>
           )}
           <div className="w-px h-8 bg-white/5 mx-2" />
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setShowAbout(!showAbout)}
-              className="p-3 rounded-xl hover:bg-white/5 transition-all text-gray-500 hover:text-white group"
-              title="About System"
-            >
-              <Info className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-            </button>
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-3 rounded-xl hover:bg-white/5 transition-all text-gray-500 hover:text-white group"
-              title="Global Settings"
-            >
-              <Settings className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-            </button>
-          </div>
+          <button
+            onClick={() => setShowAbout(!showAbout)}
+            className="p-3 rounded-xl hover:bg-white/5 transition-all text-gray-500 hover:text-white group"
+            title="About"
+          >
+            <Info className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+          </button>
         </div>
       </nav>
 
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-neutral-950 border border-white/10 p-6 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-md relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-amber-500/5 pointer-events-none" />
-            <button
-              onClick={() => setShowSettings(false)}
-              className="absolute top-5 right-5 p-2 rounded-full hover:bg-white/10 transition-all text-gray-400 hover:text-white z-50 bg-black/50 backdrop-blur-sm border border-white/5"
-              aria-label="Close Settings"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <div className="relative space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-yellow-500 flex items-center justify-center shadow-lg shadow-yellow-500/20">
-                  <Key className="w-6 h-6 text-black" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-xl text-white">OCR Settings</h3>
-                  <p className="text-xs text-yellow-500/70 uppercase tracking-widest font-bold">API Authentication</p>
-                </div>
-              </div>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Connect your custom OCR engine for lightning-fast data extraction. Leave empty to use the public demo key.
-              </p>
-              <div className="space-y-2">
-                <input
-                  type="password"
-                  placeholder="ocr_..."
-                  className="w-full px-4 py-4 border border-white/10 rounded-2xl bg-white/5 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="px-6 py-3 text-sm font-medium text-gray-400 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSaveKey(apiKey)}
-                  className="px-8 py-3 text-sm bg-yellow-500 text-black rounded-2xl font-bold hover:bg-yellow-400 transition-all shadow-xl shadow-yellow-500/20 active:scale-95"
-                >
-                  Apply Settings
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* About Modal */}
+
       {showAbout && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-neutral-950 border border-white/10 p-10 rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden text-center">
