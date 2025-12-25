@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, Settings, Key, Download, Info, Upload, Palette, Layout, Sliders, Table, ChevronLeft, ChevronRight, Sparkles, X, Eye, Image, Wand2, ZoomIn, ZoomOut, RotateCcw, Plus } from 'lucide-react';
 import { ImageUpload } from './components/ImageUpload';
 import { DataEditor } from './components/DataEditor';
@@ -25,7 +25,7 @@ function App() {
   const [selectedElement, setSelectedElement] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
-  const [previewZoom, setPreviewZoom] = useState(0.8); // Default to slightly zoomed out for better fit
+  const [previewZoom, setPreviewZoom] = useState(0.8);
   const [chartStyles, setChartStyles] = useState({
     scale: 1,
     x: 0,
@@ -39,6 +39,112 @@ function App() {
     note: { x: 0, y: 0, scale: 1 },
     notesContent: null
   });
+
+  // ========== GLOBAL UNDO/REDO SYSTEM (Photoshop-style) ==========
+  const historyRef = useRef([]);
+  const historyIndexRef = useRef(-1);
+  const isUndoRedoAction = useRef(false);
+  const MAX_HISTORY = 50;
+
+  // Capture current state for history
+  const captureState = useCallback(() => {
+    return {
+      chartData: chartData ? JSON.parse(JSON.stringify(chartData)) : null,
+      chartStyles: JSON.parse(JSON.stringify(chartStyles)),
+      sku: sku,
+      selectedBrand: selectedBrand ? JSON.parse(JSON.stringify(selectedBrand)) : null,
+      customTemplate: customTemplate
+    };
+  }, [chartData, chartStyles, sku, selectedBrand, customTemplate]);
+
+  // Push state to history (called after any canvas change)
+  const pushToHistory = useCallback(() => {
+    if (isUndoRedoAction.current) {
+      isUndoRedoAction.current = false;
+      return;
+    }
+
+    const state = captureState();
+
+    // Remove any future states if we're in the middle of history
+    const newHistory = historyRef.current.slice(0, historyIndexRef.current + 1);
+    newHistory.push(state);
+
+    // Limit history size
+    if (newHistory.length > MAX_HISTORY) {
+      newHistory.shift();
+    } else {
+      historyIndexRef.current = newHistory.length - 1;
+    }
+
+    historyRef.current = newHistory;
+  }, [captureState]);
+
+  // Undo action
+  const handleUndo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+
+    isUndoRedoAction.current = true;
+    historyIndexRef.current -= 1;
+    const state = historyRef.current[historyIndexRef.current];
+
+    if (state) {
+      setChartData(state.chartData);
+      setChartStyles(state.chartStyles);
+      setSku(state.sku);
+      setSelectedBrand(state.selectedBrand);
+      setCustomTemplate(state.customTemplate);
+    }
+  }, []);
+
+  // Redo action
+  const handleRedo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+
+    isUndoRedoAction.current = true;
+    historyIndexRef.current += 1;
+    const state = historyRef.current[historyIndexRef.current];
+
+    if (state) {
+      setChartData(state.chartData);
+      setChartStyles(state.chartStyles);
+      setSku(state.sku);
+      setSelectedBrand(state.selectedBrand);
+      setCustomTemplate(state.customTemplate);
+    }
+  }, []);
+
+  // Global keyboard shortcuts for Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+Z or Cmd+Z = Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      // Ctrl+Shift+Z or Cmd+Shift+Z = Redo (Photoshop style)
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      }
+      // Ctrl+Y = Redo (alternative)
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Track state changes and push to history
+  useEffect(() => {
+    if (chartData) {
+      pushToHistory();
+    }
+  }, [chartData, chartStyles, sku, selectedBrand, customTemplate]);
+  // ========== END UNDO/REDO SYSTEM ==========
 
 
   useEffect(() => {
@@ -112,6 +218,7 @@ function App() {
   const handlePositionChange = (updatedStyles) => {
     setChartStyles(prev => ({ ...prev, ...updatedStyles }));
   };
+
 
   const handleExport = async (format) => {
     if (format !== 'jpg' && format !== 'jpeg') {
