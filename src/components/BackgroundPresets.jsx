@@ -105,14 +105,14 @@ export function BackgroundPresets({ onTemplateSelect, currentTemplate, currentSt
                 <button
                     onClick={() => setShowSaveDialog(true)}
                     disabled={!currentTemplate}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-lg hover:bg-violet-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[10px] font-black uppercase tracking-widest bg-yellow-500 text-black rounded-xl hover:bg-yellow-400 disabled:opacity-30 disabled:grayscale transition-all shadow-lg active:scale-95"
                 >
                     <Plus className="w-3.5 h-3.5" />
-                    Save Preset
+                    Archive
                 </button>
-                <label className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-700/50 text-gray-300 border border-white/5 rounded-lg hover:bg-slate-700 cursor-pointer transition-all">
-                    <Upload className="w-3.5 h-3.5" />
-                    Upload
+                <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[10px] font-black uppercase tracking-widest bg-white/[0.05] text-white border border-white/10 rounded-xl hover:bg-white/[0.08] cursor-pointer transition-all active:scale-95">
+                    <Upload className="w-3.5 h-3.5 text-yellow-500" />
+                    Import
                     <input
                         type="file"
                         className="hidden"
@@ -124,29 +124,29 @@ export function BackgroundPresets({ onTemplateSelect, currentTemplate, currentSt
 
             {/* Save Dialog */}
             {showSaveDialog && (
-                <div className="bg-slate-800/50 border border-white/5 p-3 rounded-xl space-y-3">
+                <div className="bg-white/[0.03] border border-white/10 p-4 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
                     <input
                         type="text"
                         value={presetName}
                         onChange={(e) => setPresetName(e.target.value)}
-                        placeholder="Preset name..."
-                        className="w-full px-3 py-2 text-sm border border-white/10 rounded-lg bg-slate-900/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                        placeholder="Template Name..."
+                        className="w-full px-4 py-3 text-sm border border-white/10 rounded-xl bg-black text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/30 font-medium"
                         onKeyPress={(e) => e.key === 'Enter' && handleSaveCurrent()}
                         autoFocus
                     />
                     <div className="flex gap-2">
                         <button
                             onClick={handleSaveCurrent}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition-colors"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[10px] font-black uppercase tracking-widest bg-yellow-500 text-black rounded-xl hover:bg-yellow-400 transition-all active:scale-95"
                         >
-                            <Save className="w-3.5 h-3.5" />
-                            Save
+                            <Save className="w-4 h-4" />
+                            Store
                         </button>
                         <button
                             onClick={() => setShowSaveDialog(false)}
-                            className="px-3 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+                            className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors"
                         >
-                            Cancel
+                            Abort
                         </button>
                     </div>
                 </div>
@@ -178,10 +178,10 @@ export function BackgroundPresets({ onTemplateSelect, currentTemplate, currentSt
                         >
                             <div
                                 className={cn(
-                                    "aspect-square rounded-lg overflow-hidden border-2 transition-all duration-200",
+                                    "aspect-square rounded-xl overflow-hidden border-2 transition-all duration-300",
                                     isSelected
-                                        ? "border-violet-500 ring-2 ring-violet-500/30 scale-95"
-                                        : "border-white/10 hover:border-violet-500/50 hover:scale-[0.98]"
+                                        ? "border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.3)] scale-[0.98]"
+                                        : "border-white/5 group-hover:border-yellow-500/50"
                                 )}
                             >
                                 <img
@@ -195,9 +195,9 @@ export function BackgroundPresets({ onTemplateSelect, currentTemplate, currentSt
 
                                 {/* Selected Indicator */}
                                 {isSelected && (
-                                    <div className="absolute inset-0 bg-violet-500/20 flex items-center justify-center">
-                                        <div className="w-6 h-6 bg-violet-500 rounded-full flex items-center justify-center">
-                                            <Check className="w-3.5 h-3.5 text-white" />
+                                    <div className="absolute inset-0 bg-yellow-500/10 flex items-center justify-center backdrop-blur-[1px]">
+                                        <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                                            <Check className="w-5 h-5 text-black font-black" />
                                         </div>
                                     </div>
                                 )}
@@ -227,9 +227,9 @@ export function BackgroundPresets({ onTemplateSelect, currentTemplate, currentSt
             {currentTemplate && (
                 <button
                     onClick={() => onTemplateSelect(null)}
-                    className="w-full text-xs text-gray-500 hover:text-red-400 transition-colors py-1"
+                    className="w-full text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 hover:text-red-500 transition-colors py-2"
                 >
-                    Clear background
+                    Wipe Background
                 </button>
             )}
         </div>

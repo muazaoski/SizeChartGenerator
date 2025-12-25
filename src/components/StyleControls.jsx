@@ -57,19 +57,19 @@ export function StyleControls({ selectedElement, styles, onStyleChange }) {
             {selectedElement ? (
                 <div className="space-y-4">
                     {/* Selected Element Badge */}
-                    <div className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border border-violet-500/20 rounded-lg">
-                        <Move className="w-4 h-4 text-violet-400" />
-                        <span className="text-sm text-violet-300 font-medium">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                        <Move className="w-4 h-4 text-yellow-500" />
+                        <span className="text-sm text-yellow-400/90 font-bold uppercase tracking-wider">
                             {getElementDisplayName(selectedElement)}
                         </span>
-                        <span className="text-xs text-gray-500 ml-auto">Drag to move</span>
+                        <span className="text-[10px] text-gray-500 ml-auto uppercase font-bold">MOVE MODE</span>
                     </div>
 
                     {/* Scale Slider */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-medium text-gray-400">Scale</label>
-                            <span className="text-xs text-violet-400 font-mono">{currentScale.toFixed(1)}x</span>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-tighter">Scale Factor</label>
+                            <span className="text-xs text-yellow-500 font-mono font-bold">{currentScale.toFixed(1)}x</span>
                         </div>
                         <input
                             type="range"
@@ -83,8 +83,8 @@ export function StyleControls({ selectedElement, styles, onStyleChange }) {
                     </div>
 
                     {/* Alignment Controls */}
-                    <div className="space-y-3 p-3 bg-slate-800/50 border border-white/5 rounded-xl">
-                        <div className="text-xs font-medium text-gray-400 mb-2">Quick Align</div>
+                    <div className="space-y-3 p-3 bg-white/[0.03] border border-white/5 rounded-xl">
+                        <div className="text-[10px] font-black text-gray-500 mb-2 uppercase tracking-widest">Alignment</div>
 
                         {/* Horizontal */}
                         <div className="space-y-1.5">
@@ -92,21 +92,21 @@ export function StyleControls({ selectedElement, styles, onStyleChange }) {
                             <div className="flex gap-1">
                                 <button
                                     onClick={() => handleAlignment('left')}
-                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-slate-700/50 hover:bg-violet-500/20 hover:text-violet-400 text-gray-400 rounded-lg transition-all"
+                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-white/5 hover:bg-yellow-500/20 hover:text-yellow-500 text-gray-400 rounded-lg transition-all"
                                     title="Align Left"
                                 >
                                     <AlignLeft className="w-4 h-4" />
                                 </button>
                                 <button
                                     onClick={() => handleAlignment('center')}
-                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-slate-700/50 hover:bg-violet-500/20 hover:text-violet-400 text-gray-400 rounded-lg transition-all"
+                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-white/5 hover:bg-yellow-500/20 hover:text-yellow-500 text-gray-400 rounded-lg transition-all"
                                     title="Align Center"
                                 >
                                     <AlignCenter className="w-4 h-4" />
                                 </button>
                                 <button
                                     onClick={() => handleAlignment('right')}
-                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-slate-700/50 hover:bg-violet-500/20 hover:text-violet-400 text-gray-400 rounded-lg transition-all"
+                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-white/5 hover:bg-yellow-500/20 hover:text-yellow-500 text-gray-400 rounded-lg transition-all"
                                     title="Align Right"
                                 >
                                     <AlignRight className="w-4 h-4" />
@@ -120,21 +120,21 @@ export function StyleControls({ selectedElement, styles, onStyleChange }) {
                             <div className="flex gap-1">
                                 <button
                                     onClick={() => handleAlignment('top')}
-                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-slate-700/50 hover:bg-violet-500/20 hover:text-violet-400 text-gray-400 rounded-lg transition-all"
+                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-white/5 hover:bg-yellow-500/20 hover:text-yellow-500 text-gray-400 rounded-lg transition-all"
                                     title="Align Top"
                                 >
                                     <ArrowUp className="w-4 h-4" />
                                 </button>
                                 <button
                                     onClick={() => handleAlignment('middle')}
-                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-slate-700/50 hover:bg-violet-500/20 hover:text-violet-400 text-gray-400 rounded-lg transition-all"
+                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-white/5 hover:bg-yellow-500/20 hover:text-yellow-500 text-gray-400 rounded-lg transition-all"
                                     title="Align Middle"
                                 >
                                     <Minus className="w-4 h-4" />
                                 </button>
                                 <button
                                     onClick={() => handleAlignment('bottom')}
-                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-slate-700/50 hover:bg-violet-500/20 hover:text-violet-400 text-gray-400 rounded-lg transition-all"
+                                    className="flex-1 flex items-center justify-center p-2 text-xs bg-white/5 hover:bg-yellow-500/20 hover:text-yellow-500 text-gray-400 rounded-lg transition-all"
                                     title="Align Bottom"
                                 >
                                     <ArrowDown className="w-4 h-4" />
@@ -144,13 +144,13 @@ export function StyleControls({ selectedElement, styles, onStyleChange }) {
                     </div>
                 </div>
             ) : (
-                <div className="flex items-center gap-3 px-4 py-6 bg-slate-800/30 border border-white/5 rounded-xl">
-                    <div className="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center">
-                        <MousePointer className="w-5 h-5 text-gray-500" />
+                <div className="flex items-center gap-4 px-4 py-8 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center shrink-0">
+                        <MousePointer className="w-6 h-6 text-gray-600" />
                     </div>
                     <div>
-                        <p className="text-sm text-gray-300">No element selected</p>
-                        <p className="text-xs text-gray-500">Click on the preview to select</p>
+                        <p className="text-sm font-bold text-gray-300">Standby</p>
+                        <p className="text-xs text-gray-500 leading-relaxed uppercase tracking-tighter">Select an element to refine</p>
                     </div>
                 </div>
             )}

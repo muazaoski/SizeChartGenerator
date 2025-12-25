@@ -432,11 +432,21 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
             if (ds.type === 'scale') {
                 const diffX = e.clientX - ds.startX;
                 const diffY = e.clientY - ds.startY;
-                const distance = Math.sqrt(diffX * diffX + diffY * diffY);
-                const direction = (diffX + diffY) > 0 ? 1 : -1;
 
-                // Simple proportional scaling
-                const newScale = Math.max(0.1, ds.startScale + (direction * distance * 0.005));
+                let delta = 0;
+                const c = ds.corner;
+
+                // Determine scaling delta based on corner
+                if (c === 'se') delta = diffX + diffY;
+                else if (c === 'nw') delta = -(diffX + diffY);
+                else if (c === 'ne') delta = diffX - diffY;
+                else if (c === 'sw') delta = -diffX + diffY;
+                else if (c === 'n') delta = -diffY;
+                else if (c === 's') delta = diffY;
+                else if (c === 'e') delta = diffX;
+                else if (c === 'w') delta = -diffX;
+
+                const newScale = Math.max(0.05, ds.startScale + (delta * 0.005));
 
                 requestAnimationFrame(() => {
                     const updatedStyles = {
@@ -503,8 +513,8 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                     cursor: isSelected ? 'move' : 'pointer',
                     transformOrigin: 'center center',
                     transform: `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${scale})`,
-                    outline: isSelected ? `${outlineWidth}px solid #3b82f6` : isHovered ? `${outlineWidth}px solid rgba(147, 197, 253, 0.5)` : 'none',
-                    outlineOffset: '2px'
+                    outline: isSelected ? `${outlineWidth}px solid #fbbf24` : isHovered ? `${outlineWidth}px solid rgba(251, 191, 36, 0.5)` : 'none',
+                    outlineOffset: `${2 * inverseScale}px`
                 }}
             >
                 {children}
@@ -514,7 +524,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                     <>
                         {/* Corner handles */}
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -525,7 +535,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                             onMouseDown={(e) => handleScaleStart(e, 'nw')}
                         />
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -536,7 +546,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                             onMouseDown={(e) => handleScaleStart(e, 'ne')}
                         />
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -547,7 +557,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                             onMouseDown={(e) => handleScaleStart(e, 'sw')}
                         />
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -560,7 +570,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
                         {/* Edge handles */}
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -572,7 +582,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                             onMouseDown={(e) => handleScaleStart(e, 'n')}
                         />
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -584,7 +594,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                             onMouseDown={(e) => handleScaleStart(e, 's')}
                         />
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -596,7 +606,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                             onMouseDown={(e) => handleScaleStart(e, 'w')}
                         />
                         <div
-                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
                             style={{
                                 width: `${handleSize}px`,
                                 height: `${handleSize}px`,
@@ -610,14 +620,14 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
                         {/* Center move icon */}
                         <div className="export-hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                            <svg width={20 * inverseScale} height={20 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                            <svg width={20 * inverseScale} height={20 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500">
                                 <path d="M12 2L12 22M2 12L22 12M12 2L8 6M12 2L16 6M12 22L8 18M12 22L16 18M2 12L6 8M2 12L6 16M22 12L18 8M22 12L18 16" />
                             </svg>
                         </div>
 
                         {/* Rotate handle */}
                         <div
-                            className="export-hidden absolute left-1/2 -translate-x-1/2 cursor-grab flex items-center justify-center bg-white rounded-full border border-blue-500 shadow-md"
+                            className="export-hidden absolute left-1/2 -translate-x-1/2 cursor-grab flex items-center justify-center bg-white rounded-full border border-amber-500 shadow-md"
                             style={{
                                 width: `${handleSize * 2.5}px`,
                                 height: `${handleSize * 2.5}px`,
@@ -626,7 +636,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                             onMouseDown={handleRotateStart}
                             title="Rotate"
                         >
-                            <svg width={14 * inverseScale} height={14 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                            <svg width={14 * inverseScale} height={14 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500">
                                 <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.12 0 4.07.74 5.61 1.97" />
                                 <path d="M21 3v6h-6" />
                             </svg>

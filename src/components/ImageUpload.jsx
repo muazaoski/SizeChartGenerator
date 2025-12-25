@@ -56,13 +56,13 @@ export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
         <div className="w-full">
             <div
                 className={cn(
-                    "relative rounded-xl transition-all duration-200 ease-out flex flex-col items-center justify-center text-center cursor-pointer overflow-hidden",
+                    "relative rounded-2xl transition-all duration-300 ease-out flex flex-col items-center justify-center text-center cursor-pointer overflow-hidden group",
                     isDragging
-                        ? "border-2 border-violet-500 bg-violet-500/10 scale-[1.01]"
+                        ? "border-2 border-yellow-500 bg-yellow-500/10 scale-[1.02] shadow-[0_0_30px_rgba(234,179,8,0.1)]"
                         : preview
-                            ? "border border-white/10 bg-slate-800/30"
-                            : "border-2 border-dashed border-white/10 hover:border-violet-500/50 bg-slate-800/20 hover:bg-slate-800/40",
-                    preview ? "p-2 min-h-[180px]" : "p-6 min-h-[180px]"
+                            ? "border border-white/10 bg-white/[0.02]"
+                            : "border-2 border-dashed border-white/5 hover:border-yellow-500/40 bg-white/[0.02] hover:bg-white/[0.04]",
+                    preview ? "p-2 min-h-[180px]" : "p-8 min-h-[220px]"
                 )}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -105,14 +105,14 @@ export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-3 pointer-events-none py-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-xl flex items-center justify-center mx-auto border border-violet-500/20">
-                            <Upload className="w-5 h-5 text-violet-400" />
+                    <div className="space-y-4 pointer-events-none py-6">
+                        <div className="w-14 h-14 bg-yellow-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-yellow-500/20 group-hover:scale-110 transition-transform duration-300">
+                            <Upload className="w-6 h-6 text-black" />
                         </div>
                         <div className="space-y-1">
-                            <h3 className="text-sm font-semibold text-white">Drop image here</h3>
-                            <p className="text-xs text-gray-500">
-                                or click to browse files
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider">Deploy Artifact</h3>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">
+                                Drag & Drop or Click to Select
                             </p>
                         </div>
                         <div className="flex items-center justify-center gap-1.5 text-[10px] text-gray-600">
