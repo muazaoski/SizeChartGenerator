@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Settings, Key, Download, Info, Upload, Palette, Layout, Sliders, Table, ChevronLeft, ChevronRight, Sparkles, X, Eye, Image, Wand2 } from 'lucide-react';
+import { Loader2, Settings, Key, Download, Info, Upload, Palette, Layout, Sliders, Table, ChevronLeft, ChevronRight, Sparkles, X, Eye, Image, Wand2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { ImageUpload } from './components/ImageUpload';
 import { DataEditor } from './components/DataEditor';
 import { BrandSelector } from './components/BrandSelector';
@@ -25,6 +25,7 @@ function App() {
   const [selectedElement, setSelectedElement] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
+  const [previewZoom, setPreviewZoom] = useState(0.8); // Default to slightly zoomed out for better fit
   const [chartStyles, setChartStyles] = useState({
     scale: 1,
     x: 0,
@@ -635,24 +636,66 @@ function App() {
               </p>
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <ChartPreview
-                id="chart-preview"
-                data={chartData}
-                brand={selectedBrand}
-                template={customTemplate}
-                styles={chartStyles}
-                selectedElement={selectedElement}
-                setSelectedElement={setSelectedElement}
-                onPositionChange={handlePositionChange}
-                onExport={handleExport}
-                sku={sku}
-                notes={chartStyles.notesContent}
-                onDataChange={(newData) => setChartData(newData)}
-                onSkuChange={(newSku) => setSku(newSku)}
-                onNotesChange={(newNotes) => setChartStyles(prev => ({ ...prev, notesContent: newNotes }))}
-                className="w-full h-full max-w-[1080px] max-h-[1080px] object-contain"
-              />
+            <div className="w-full h-full flex flex-col items-center justify-center relative">
+              <div
+                className="transition-transform duration-200 ease-out origin-center"
+                style={{ transform: `scale(${previewZoom})` }}
+              >
+                <ChartPreview
+                  id="chart-preview"
+                  data={chartData}
+                  brand={selectedBrand}
+                  template={customTemplate}
+                  styles={chartStyles}
+                  selectedElement={selectedElement}
+                  setSelectedElement={setSelectedElement}
+                  onPositionChange={handlePositionChange}
+                  onExport={handleExport}
+                  sku={sku}
+                  notes={chartStyles.notesContent}
+                  onDataChange={(newData) => setChartData(newData)}
+                  onSkuChange={(newSku) => setSku(newSku)}
+                  onNotesChange={(newNotes) => setChartStyles(prev => ({ ...prev, notesContent: newNotes }))}
+                  className="w-[1080px] h-[1080px] shadow-2xl"
+                />
+              </div>
+
+              {/* Zoom Controls Overlay */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-full shadow-2xl z-30">
+                <button
+                  onClick={() => setPreviewZoom(prev => Math.max(0.2, prev - 0.1))}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-2 px-2 border-x border-white/5">
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="1.5"
+                    step="0.05"
+                    value={previewZoom}
+                    onChange={(e) => setPreviewZoom(parseFloat(e.target.value))}
+                    className="w-24 accent-violet-500 h-1 rounded-lg"
+                  />
+                  <span className="text-[10px] font-mono text-gray-400 w-8">{Math.round(previewZoom * 100)}%</span>
+                </div>
+                <button
+                  onClick={() => setPreviewZoom(prev => Math.min(1.5, prev + 0.1))}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setPreviewZoom(0.8)}
+                  className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  title="Reset Zoom"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </main>
