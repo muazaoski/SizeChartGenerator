@@ -7,9 +7,3 @@ services:
     restart: unless-stopped
     ports:
       - "3000:80"
-    networks:
-      - ocr-network
-
-networks:
-  ocr-network:
-    external: true
