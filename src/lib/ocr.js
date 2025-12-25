@@ -5,6 +5,7 @@ const OCR_API_URL = "https://ocr.muazaoski.online/ocr/extract";
  */
 export async function extractDataFromOCR(imageBase64, apiKey) {
     try {
+        console.log("Starting OCR Extraction...");
         // Use provided key or fallback to a public demo key
         const finalApiKey = apiKey || "ocr_demo_key_public_feel_free_to_use";
 
@@ -24,9 +25,8 @@ export async function extractDataFromOCR(imageBase64, apiKey) {
         const formData = new FormData();
         formData.append('file', blob, 'chart.png');
 
-        // Detailed extraction for better layout understanding if needed, 
-        // but text endpoint is 100% accurate for our charts
-        const response = await fetch(`${OCR_API_URL}?language=ind&psm=6&preprocess=true`, {
+        // We use PSM 3 (Auto) for better flexibility with grid lines
+        const response = await fetch(`${OCR_API_URL}?language=ind&psm=3&preprocess=true`, {
             method: 'POST',
             body: formData,
             headers: {
@@ -39,6 +39,8 @@ export async function extractDataFromOCR(imageBase64, apiKey) {
         }
 
         const result = await response.json();
+        console.log("Raw OCR Text Output:", result.text);
+
         return parseOCROutput(result.text);
     } catch (error) {
         console.error("OCR Extraction Error:", error);
@@ -47,42 +49,40 @@ export async function extractDataFromOCR(imageBase64, apiKey) {
 }
 
 /**
- * State-of-the-art parser for size chart OCR results.
- * Handles messy text, artifacts, and multi-line layouts.
+ * Robust parser for size chart OCR results.
  */
 function parseOCROutput(text) {
+    if (!text) return { sku: null, notes: null, tableData: { headers: ["SIZE", "UKURAN"], data: [] } };
+
     const rawLines = text.split('\n');
     const cleanedLines = rawLines.map(line => {
-        // Remove pipes and weird brackets but keep letters, numbers, and common symbols
+        // Keep alphanumeric and basic punctuation for measurements
         return line.replace(/[|\[\]_]/g, ' ').replace(/\s+/g, ' ').trim();
     }).filter(l => l.length > 0);
 
     let sku = null;
-    let headers = [];
+    let headers = ["SIZE", "UKURAN"]; // Default headers
     const tableRows = [];
     let headerFound = false;
     let notesLines = [];
 
-    // 1. Precise SKU Detection
-    for (const line of cleanedLines.slice(0, 10)) {
-        const skuMatch = line.match(/(?:SKU|Article|Art|Model|Kode|Code|Style)[:\s]+([A-Z0-9\-]{3,})/i);
-        if (skuMatch) {
-            sku = skuMatch[1];
-            break;
-        }
-        if (/^[A-Z0-9\-]{5,15}$/i.test(line) && !['SIZE', 'UKURAN'].includes(line.toUpperCase())) {
-            sku = line;
-        }
-    }
-
-    // 2. Header & Data Extraction
+    // Keywords to identify headers
     const headerKeywords = ['size', 'ukuran', 'eu', 'us', 'uk', 'cm', 'mm', 'inch', 'len', 'foot', 'panjang'];
 
     for (let i = 0; i < cleanedLines.length; i++) {
         const line = cleanedLines[i];
         const lowerLine = line.toLowerCase();
 
-        // Detect Header
+        // 1. Detect SKU (Anywhere in the text, usually top)
+        if (!sku) {
+            const skuMatch = line.match(/(?:SKU|Article|Art|Model|Kode|Code|Style)[:\s]+([A-Z0-9\-]+)/i);
+            if (skuMatch) {
+                sku = skuMatch[1];
+                continue;
+            }
+        }
+
+        // 2. Detect Header
         if (!headerFound && headerKeywords.some(k => lowerLine.includes(k))) {
             const potentialHeaders = line.split(/\s+/)
                 .filter(h => h.length > 1 || /[0-9]/.test(h))
@@ -95,44 +95,43 @@ function parseOCROutput(text) {
             }
         }
 
-        // Process Data Rows
-        if (headerFound) {
-            // Split by whitespace and then clean each token from surrounding junk
-            const rawTokens = line.split(/\s+/);
-            const tokens = rawTokens.map(t => t.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')).filter(t => t.length > 0);
+        // 3. Process Data Rows
+        const tokens = line.split(/\s+/).map(t => t.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')).filter(t => t.length > 0);
 
-            // Check if it's a Footer/Note line
-            const isNote = lowerLine.includes('note') ||
-                lowerLine.includes('please') ||
-                lowerLine.includes('*)') ||
-                lowerLine.includes('guide') ||
-                rawTokens.length > 12;
+        // A data row usually starts with a size number (35, 36...) or label (S, M...)
+        const isDataRow = tokens.length >= 1 && (
+            /^\d/.test(tokens[0]) ||
+            /^[SMLXL]/.test(tokens[0].toUpperCase())
+        );
 
-            // Row is valid if it has content and is not a note
-            if (tokens.length >= 1 && !isNote && tableRows.length < 50) {
-                const rowObj = {};
-                headers.forEach((h, idx) => {
-                    // Map data to headers by position
+        if (isDataRow && !lowerLine.includes('sku') && !lowerLine.includes('size')) {
+            const rowObj = {};
+            headers.forEach((h, idx) => {
+                if (idx === headers.length - 1) {
+                    // Join all remaining tokens into the last column (e.g. "24.5", "CM" -> "24.5 CM")
+                    rowObj[h] = tokens.slice(idx).join(' ');
+                } else {
                     rowObj[h] = tokens[idx] || "";
-                });
-
-                // Final check: Does it have actual data?
-                if (Object.values(rowObj).some(v => v.length > 0 && /[a-zA-Z0-9]/.test(v))) {
-                    tableRows.push(rowObj);
                 }
-            } else if (headerFound && tableRows.length > 0 && lowerLine.length > 5) {
+            });
+
+            if (Object.values(rowObj).some(v => v.length > 0)) {
+                tableRows.push(rowObj);
+            }
+        } else if (headerFound && tableRows.length > 0 && !isDataRow) {
+            // Collect as notes if it's not a data row and we've already found the table
+            if (lowerLine.length > 5 && !lowerLine.includes('sku')) {
                 notesLines.push(line);
             }
         }
     }
 
-    // 3. Notes Cleanup
+    // 4. Notes Formatting
     let notes = null;
     if (notesLines.length > 0) {
         const validNotes = notesLines
-            .filter(l => l.length > 8 && !l.includes('---'))
+            .filter(l => l.length > 10)
             .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim())
-            .filter(l => l.length > 0)
             .slice(0, 5);
 
         if (validNotes.length > 0) {
@@ -143,11 +142,17 @@ function parseOCROutput(text) {
         }
     }
 
+    // If no SKU found at the top, try a final global regex search
+    if (!sku) {
+        const globalSkuMatch = text.match(/(?:SKU|Art)[:\s]+([A-Z0-9\-]+)/i);
+        if (globalSkuMatch) sku = globalSkuMatch[1];
+    }
+
     return {
-        sku,
-        notes,
+        sku: sku || "",
+        notes: notes,
         tableData: {
-            headers: headers.length > 0 ? headers : ["SIZE", "UKURAN"],
+            headers: headers,
             data: tableRows.length > 0 ? tableRows : [{ "SIZE": "-", "UKURAN": "-" }]
         }
     };
