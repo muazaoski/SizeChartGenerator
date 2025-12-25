@@ -476,19 +476,35 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
             document.removeEventListener('mouseup', handleTransformMouseUp);
         };
 
-        const elementStyles = styles[elementType] || {};
+        const elementStyles = currentStyles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
         const rotation = elementStyles.rotate || 0;
+        const scale = elementStyles.scale || 1;
+        const x = elementStyles.x || 0;
+        const y = elementStyles.y || 0;
+
+        // Inverse scale for handles and outlines to keep them consistent
+        const inverseScale = 1 / scale;
+        const handleSize = 10 * inverseScale;
+        const handleOffset = -5 * inverseScale;
+        const outlineWidth = 2 * inverseScale;
 
         return (
             <div
-                className={`relative ${displayClass} export-no-ring ${isSelected ? 'outline outline-2 outline-blue-500' : ''} ${isHovered && !isSelected ? 'outline outline-2 outline-blue-400/50' : ''} ${className} gpu-accelerated`}
+                className={cn(
+                    "gpu-accelerated export-no-ring transition-transform duration-75 ease-out",
+                    displayClass,
+                    isSelected && "z-40",
+                    className
+                )}
                 onMouseDown={(e) => handleElementMouseDown(e, elementType)}
                 onMouseEnter={() => setHoveredElement(elementType)}
                 onMouseLeave={() => setHoveredElement(null)}
                 style={{
                     cursor: isSelected ? 'move' : 'pointer',
                     transformOrigin: 'center center',
-                    transform: `rotate(${rotation}deg)`
+                    transform: `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${scale})`,
+                    outline: isSelected ? `${outlineWidth}px solid #3b82f6` : isHovered ? `${outlineWidth}px solid rgba(147, 197, 253, 0.5)` : 'none',
+                    outlineOffset: '2px'
                 }}
             >
                 {children}
@@ -498,54 +514,119 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                     <>
                         {/* Corner handles */}
                         <div
-                            className={`export-hidden absolute -top-1.5 -left-1.5 ${handleStyle} cursor-nw-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                top: `${handleOffset}px`,
+                                left: `${handleOffset}px`,
+                                cursor: 'nw-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 'nw')}
                         />
                         <div
-                            className={`export-hidden absolute -top-1.5 -right-1.5 ${handleStyle} cursor-ne-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                top: `${handleOffset}px`,
+                                right: `${handleOffset}px`,
+                                cursor: 'ne-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 'ne')}
                         />
                         <div
-                            className={`export-hidden absolute -bottom-1.5 -left-1.5 ${handleStyle} cursor-sw-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                bottom: `${handleOffset}px`,
+                                left: `${handleOffset}px`,
+                                cursor: 'sw-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 'sw')}
                         />
                         <div
-                            className={`export-hidden absolute -bottom-1.5 -right-1.5 ${handleStyle} cursor-se-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                bottom: `${handleOffset}px`,
+                                right: `${handleOffset}px`,
+                                cursor: 'se-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 'se')}
                         />
 
                         {/* Edge handles */}
                         <div
-                            className={`export-hidden absolute -top-1 left-1/2 -translate-x-1/2 ${edgeHandleStyle} cursor-n-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                top: `${handleOffset}px`,
+                                left: '50%',
+                                marginLeft: `${handleOffset}px`,
+                                cursor: 'n-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 'n')}
                         />
                         <div
-                            className={`export-hidden absolute -bottom-1 left-1/2 -translate-x-1/2 ${edgeHandleStyle} cursor-s-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                bottom: `${handleOffset}px`,
+                                left: '50%',
+                                marginLeft: `${handleOffset}px`,
+                                cursor: 's-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 's')}
                         />
                         <div
-                            className={`export-hidden absolute top-1/2 -left-1 -translate-y-1/2 ${edgeHandleStyle} cursor-w-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                left: `${handleOffset}px`,
+                                top: '50%',
+                                marginTop: `${handleOffset}px`,
+                                cursor: 'w-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 'w')}
                         />
                         <div
-                            className={`export-hidden absolute top-1/2 -right-1 -translate-y-1/2 ${edgeHandleStyle} cursor-e-resize`}
+                            className="export-hidden absolute bg-white border border-blue-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                right: `${handleOffset}px`,
+                                top: '50%',
+                                marginTop: `${handleOffset}px`,
+                                cursor: 'e-resize'
+                            }}
                             onMouseDown={(e) => handleScaleStart(e, 'e')}
                         />
 
                         {/* Center move icon */}
-                        <div className="export-hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500/70">
+                        <div className="export-hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                            <svg width={20 * inverseScale} height={20 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
                                 <path d="M12 2L12 22M2 12L22 12M12 2L8 6M12 2L16 6M12 22L8 18M12 22L16 18M2 12L6 8M2 12L6 16M22 12L18 8M22 12L18 16" />
                             </svg>
                         </div>
 
                         {/* Rotate handle */}
                         <div
-                            className="export-hidden absolute -top-6 left-1/2 -translate-x-1/2 w-6 h-6 cursor-grab flex items-center justify-center bg-white rounded-full border border-blue-500 shadow-md"
+                            className="export-hidden absolute left-1/2 -translate-x-1/2 cursor-grab flex items-center justify-center bg-white rounded-full border border-blue-500 shadow-md"
+                            style={{
+                                width: `${handleSize * 2.5}px`,
+                                height: `${handleSize * 2.5}px`,
+                                top: `${handleOffset * 6}px`
+                            }}
                             onMouseDown={handleRotateStart}
                             title="Rotate"
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                            <svg width={14 * inverseScale} height={14 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
                                 <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.12 0 4.07.74 5.61 1.97" />
                                 <path d="M21 3v6h-6" />
                             </svg>
@@ -578,55 +659,42 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
                     {/* Content Container */}
                     <div className={cn(
-                        "flex flex-col items-center transition-transform duration-75 ease-out origin-center gpu-accelerated",
+                        "flex flex-col items-center origin-center gpu-accelerated",
                         hasTemplate ? "absolute" : "w-full p-16"
-                    )}
-                        style={hasTemplate ? {
-                            transform: `translate(${currentStyles.x || 0}px, ${currentStyles.y || 0}px) scale(${currentStyles.scale || 1}) rotate(${currentStyles.rotate || 0}deg)`,
-                        } : {}}>
+                    )}>
 
                         {/* Brand Logo */}
                         {brand && brand.logo && (
-                            <div
-                                className="mb-6 flex justify-center transition-transform duration-75 ease-out gpu-accelerated"
-                                style={{
-                                    transform: `translate(${currentStyles.logo?.x || 0}px, ${currentStyles.logo?.y || 0}px) scale(${currentStyles.logo?.scale || 1})`
-                                }}
-                            >
-                                <BoundingBox elementType="logo">
-                                    <img
-                                        src={brand.logo}
-                                        alt={brand.name}
-                                        className="h-32 w-auto object-contain pointer-events-none select-none"
-                                        style={{ maxHeight: '120px', maxWidth: '300px' }}
-                                        draggable="false"
-                                    />
-                                </BoundingBox>
-                            </div>
+                            <BoundingBox elementType="logo" className="mb-6 flex justify-center">
+                                <img
+                                    src={brand.logo}
+                                    alt={brand.name}
+                                    className="h-32 w-auto object-contain pointer-events-none select-none"
+                                    style={{ maxHeight: '120px', maxWidth: '300px' }}
+                                    draggable="false"
+                                    onDragStart={(e) => e.preventDefault()}
+                                />
+                            </BoundingBox>
                         )}
 
                         {/* Optional Title */}
                         {currentStyles.title && (
-                            <h2
-                                className="text-5xl font-bold mb-8 uppercase tracking-wider text-center transition-transform duration-75 ease-out gpu-accelerated"
-                                style={{
-                                    color: currentStyles.textColor,
-                                    transform: `translate(${currentStyles.title?.x || 0}px, ${currentStyles.title?.y || 0}px) scale(${currentStyles.title?.scale || 1})`
-                                }}
-                            >
-                                <BoundingBox elementType="title">
+                            <BoundingBox elementType="title" className="mb-8 flex justify-center">
+                                <h2
+                                    className="text-5xl font-bold uppercase tracking-wider text-center"
+                                    style={{ color: currentStyles.textColor }}
+                                >
                                     {currentStyles.title}
-                                </BoundingBox>
-                            </h2>
+                                </h2>
+                            </BoundingBox>
                         )}
 
                         {/* The Table */}
-                        <BoundingBox elementType="table" className="block w-full">
+                        <BoundingBox elementType="table" className="w-full">
                             <div
-                                className={cn("overflow-hidden rounded-2xl w-full transition-transform duration-75 ease-out gpu-accelerated")}
+                                className="overflow-hidden rounded-2xl w-full"
                                 style={{
                                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                                    transform: `translate(${currentStyles.table?.x || 0}px, ${currentStyles.table?.y || 0}px) scale(${currentStyles.table?.scale || 1})`
                                 }}
                             >
                                 <table className="text-center border-collapse rounded-2xl overflow-hidden w-full" style={{ minWidth: '600px' }}>
@@ -671,65 +739,59 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                         </BoundingBox>
 
                         {/* Note Section */}
-                        <div
-                            className="relative group/note transition-all duration-150 ease-out gpu-accelerated"
-                            style={{
-                                transform: `translate(${currentStyles.note?.x || 0}px, ${currentStyles.note?.y || 0}px) scale(${currentStyles.note?.scale || 1})`
-                            }}
-                        >
+                        <BoundingBox elementType="note" className="w-full mt-8">
                             <div
                                 className="p-4 rounded-lg text-white text-left"
-                                style={{
-                                    backgroundColor: currentStyles.headerColor,
-                                }}
+                                style={{ backgroundColor: currentStyles.headerColor }}
                             >
-                                <BoundingBox elementType="note">
-                                    <p className="font-semibold mb-2">
-                                        <EditableText
-                                            value={localNotes.title}
-                                            onChange={handleNoteTitleChange}
-                                            placeholder="Note title"
-                                            tag="span"
-                                        />
-                                    </p>
-                                    <div className="text-sm space-y-1">
-                                        {localNotes.items.map((item, index) => (
-                                            <div key={index} className="group flex items-center gap-2">
-                                                <EditableText
-                                                    value={item}
-                                                    onChange={(newValue) => handleNoteItemChange(index, newValue)}
-                                                    placeholder={`Note ${index + 1}`}
-                                                    tag="span"
-                                                    className="flex-1"
-                                                />
-                                                {localNotes.items.length > 1 && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRemoveNoteLine(index);
-                                                        }}
-                                                        className="export-hidden opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded bg-red-500/20 hover:bg-red-500/40 text-red-300 hover:text-red-100 transition-all text-xs font-bold"
-                                                        title="Remove line"
-                                                    >
-                                                        ×
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </BoundingBox>
+                                <p className="font-semibold mb-2">
+                                    <EditableText
+                                        value={localNotes.title}
+                                        onChange={handleNoteTitleChange}
+                                        placeholder="Note title"
+                                        tag="span"
+                                    />
+                                </p>
+                                <div className="text-sm space-y-1">
+                                    {localNotes.items.map((item, index) => (
+                                        <div key={index} className="group flex items-center gap-2">
+                                            <EditableText
+                                                value={item}
+                                                onChange={(newValue) => handleNoteItemChange(index, newValue)}
+                                                placeholder={`Note ${index + 1}`}
+                                                tag="span"
+                                                className="flex-1"
+                                            />
+                                            {localNotes.items.length > 1 && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRemoveNoteLine(index);
+                                                    }}
+                                                    className="export-hidden opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded bg-red-500/20 hover:bg-red-500/40 text-red-300 hover:text-red-100 transition-all text-xs font-bold"
+                                                    title="Remove line"
+                                                >
+                                                    ×
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            {/* Add Line Button - Floating outside the note */}
+                        </BoundingBox>
+
+                        {/* Add Line Button - Floating outside the note */}
+                        {selectedElement === 'note' && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleAddNoteLine();
                                 }}
-                                className="export-hidden absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/note:opacity-100 py-1 px-3 rounded-full bg-violet-500/80 hover:bg-violet-500 text-white text-xs font-medium transition-all flex items-center justify-center gap-1 shadow-lg"
+                                className="export-hidden py-1 px-3 rounded-full bg-violet-500/80 hover:bg-violet-500 text-white text-xs font-medium transition-all flex items-center justify-center gap-1 shadow-lg mt-2"
                             >
                                 <span className="text-sm leading-none">+</span> Add Note
                             </button>
-                        </div>
+                        )}
                     </div>
 
 
