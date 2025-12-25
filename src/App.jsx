@@ -257,9 +257,7 @@ function App() {
       <nav className="h-20 bg-black/80 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-8 shrink-0 z-40">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4 group cursor-default">
-            <div className="w-12 h-12 rounded-2xl bg-yellow-500 flex items-center justify-center shadow-[0_0_30px_rgba(234,179,8,0.3)] group-hover:scale-110 transition-all duration-500 p-2.5">
-              <img src="/logo.svg" className="w-full h-full object-contain" alt="Favicon" />
-            </div>
+            <img src="/logo.svg" className="w-10 h-10 object-contain group-hover:scale-110 transition-all duration-500" alt="Favicon" />
             <div className="flex flex-col">
               <h1 className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">
                 SIZE CHART <span className="text-yellow-500">PRO</span>
@@ -284,7 +282,7 @@ function App() {
               ) : (
                 <Download className="w-4 h-4" />
               )}
-              Export Graphic
+              Export
             </button>
           )}
           <div className="w-px h-8 bg-white/5 mx-2" />
@@ -372,9 +370,7 @@ function App() {
               <X className="w-5 h-5" />
             </button>
             <div className="relative space-y-6">
-              <div className="w-20 h-20 mx-auto rounded-3xl bg-yellow-500 flex items-center justify-center shadow-xl shadow-yellow-500/20 animate-pulse-glow p-4">
-                <img src="/logo.svg" className="w-full h-full object-contain" alt="Logo" />
-              </div>
+              <img src="/logo.svg" className="w-16 h-16 mx-auto object-contain" alt="Logo" />
               <div className="space-y-2">
                 <h3 className="font-bold text-3xl text-white">Size Chart Gen</h3>
                 <p className="text-yellow-500 font-bold uppercase tracking-[0.2em] text-xs">V.2.0 Black Edition</p>
@@ -493,6 +489,20 @@ function App() {
                     </div>
                   </div>
                   <ImageUpload onImageSelect={handleImageSelect} onSKUExtracted={handleSKUExtracted} apiKey={apiKey} />
+
+                  {/* Show uploaded image preview */}
+                  {selectedImage && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Source Preview</p>
+                      <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black/20">
+                        <img
+                          src={selectedImage}
+                          alt="Uploaded source"
+                          className="w-full h-auto max-h-48 object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {selectedImage && !chartData && !isProcessing && (

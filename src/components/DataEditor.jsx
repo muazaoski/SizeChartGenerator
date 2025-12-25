@@ -102,18 +102,21 @@ export function DataEditor({ initialData, onSave }) {
         const newData = [...data, newRow];
         addToHistory(headers, newData);
         setData(newData);
+        onSave({ headers, data: newData }); // Immediately reflect on preview
     };
 
     const removeRow = (index) => {
         const newData = data.filter((_, i) => i !== index);
         addToHistory(headers, newData);
         setData(newData);
+        onSave({ headers, data: newData }); // Immediately reflect on preview
     };
 
     const addColumn = () => {
         const newHeaders = [...headers, `Col ${headers.length + 1}`];
         addToHistory(newHeaders, data);
         setHeaders(newHeaders);
+        onSave({ headers: newHeaders, data }); // Immediately reflect on preview
     };
 
     const removeColumn = (index) => {
@@ -129,6 +132,7 @@ export function DataEditor({ initialData, onSave }) {
         addToHistory(newHeaders, newData);
         setHeaders(newHeaders);
         setData(newData);
+        onSave({ headers: newHeaders, data: newData }); // Immediately reflect on preview
     };
 
     const [isSaving, setIsSaving] = useState(false);
@@ -138,6 +142,7 @@ export function DataEditor({ initialData, onSave }) {
         onSave({ headers, data });
         setTimeout(() => setIsSaving(false), 500);
     };
+
 
     return (
         <div className="space-y-4">
@@ -177,8 +182,8 @@ export function DataEditor({ initialData, onSave }) {
                 <button
                     onClick={handleSave}
                     className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-all ${isSaving
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-violet-500 text-white hover:bg-violet-600'
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-violet-500 text-white hover:bg-violet-600'
                         }`}
                 >
                     {isSaving ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}

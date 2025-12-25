@@ -749,7 +749,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                         </BoundingBox>
 
                         {/* Note Section */}
-                        <BoundingBox elementType="note" className="w-full mt-8">
+                        <BoundingBox elementType="note" className="w-full mt-4">
                             <div
                                 className="p-4 rounded-lg text-white text-left"
                                 style={{ backgroundColor: currentStyles.headerColor }}
