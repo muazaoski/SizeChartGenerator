@@ -257,8 +257,8 @@ function App() {
       <nav className="h-20 bg-black/80 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-8 shrink-0 z-40">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4 group cursor-default">
-            <div className="w-12 h-12 rounded-2xl bg-yellow-500 flex items-center justify-center shadow-[0_0_30px_rgba(234,179,8,0.2)] group-hover:scale-110 transition-transform duration-500">
-              <Sparkles className="w-6 h-6 text-black" />
+            <div className="w-12 h-12 rounded-2xl bg-yellow-500 flex items-center justify-center shadow-[0_0_30px_rgba(234,179,8,0.3)] group-hover:scale-110 transition-all duration-500 p-2.5">
+              <img src="/logo.svg" className="w-full h-full object-contain" alt="Favicon" />
             </div>
             <div className="flex flex-col">
               <h1 className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">
@@ -314,9 +314,10 @@ function App() {
             <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-amber-500/5 pointer-events-none" />
             <button
               onClick={() => setShowSettings(false)}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors text-gray-400"
+              className="absolute top-5 right-5 p-2 rounded-full hover:bg-white/10 transition-all text-gray-400 hover:text-white z-50 bg-black/50 backdrop-blur-sm border border-white/5"
+              aria-label="Close Settings"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
             <div className="relative space-y-6">
               <div className="flex items-center gap-4">
@@ -371,8 +372,8 @@ function App() {
               <X className="w-5 h-5" />
             </button>
             <div className="relative space-y-6">
-              <div className="w-20 h-20 mx-auto rounded-3xl bg-yellow-500 flex items-center justify-center shadow-xl shadow-yellow-500/20 animate-pulse-glow">
-                <Sparkles className="w-10 h-10 text-black" />
+              <div className="w-20 h-20 mx-auto rounded-3xl bg-yellow-500 flex items-center justify-center shadow-xl shadow-yellow-500/20 animate-pulse-glow p-4">
+                <img src="/logo.svg" className="w-full h-full object-contain" alt="Logo" />
               </div>
               <div className="space-y-2">
                 <h3 className="font-bold text-3xl text-white">Size Chart Gen</h3>
@@ -391,6 +392,8 @@ function App() {
           </div>
         </div>
       )}
+
+
 
       {/* Error Modal */}
       {error && (
@@ -415,7 +418,7 @@ function App() {
                       setError(null);
                       processImage(selectedImage);
                     }}
-                    className="px-4 py-2 text-sm bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition-colors"
+                    className="px-4 py-2 text-sm bg-yellow-500 text-black rounded-lg hover:bg-yellow-400 transition-colors font-bold"
                   >
                     Try Again
                   </button>
@@ -425,6 +428,7 @@ function App() {
           </div>
         </div>
       )}
+
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -681,48 +685,50 @@ function App() {
                 />
               </div>
 
-              {/* Zoom Controls Overlay */}
-              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 px-6 py-3 bg-neutral-900/90 backdrop-blur-xl border border-white/10 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-30 active:scale-[0.98] transition-all">
-                <button
-                  onClick={() => setPreviewZoom(prev => Math.max(0.2, prev - 0.1))}
-                  className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all active:scale-90"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="w-5 h-5" />
-                </button>
-                <div className="flex items-center gap-4 px-4 border-x border-white/10">
-                  <input
-                    type="range"
-                    min="0.2"
-                    max="1.5"
-                    step="0.05"
-                    value={previewZoom}
-                    onChange={(e) => setPreviewZoom(parseFloat(e.target.value))}
-                    className="w-32 accent-yellow-500 h-1.5 rounded-full cursor-pointer"
-                  />
-                  <span className="text-xs font-black text-white w-10 text-center">{Math.round(previewZoom * 100)}%</span>
+              {/* Zoom Controls Overlay - Compact by default, expands on hover */}
+              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30">
+                <div className="flex items-center gap-1 px-2 py-2 bg-neutral-900/30 backdrop-blur-md border border-white/5 rounded-full shadow-2xl opacity-30 hover:opacity-100 hover:bg-neutral-900/90 hover:px-6 hover:py-3 hover:gap-6 transition-all duration-500 ease-out group">
+                  <button
+                    onClick={() => setPreviewZoom(prev => Math.max(0.2, prev - 0.1))}
+                    className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all active:scale-90"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-5 h-5" />
+                  </button>
+                  <div className="flex items-center gap-0 w-0 overflow-hidden opacity-0 group-hover:opacity-100 group-hover:w-44 group-hover:gap-4 transition-all duration-500 px-0 border-white/10 group-hover:px-4 group-hover:border-x">
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="1.5"
+                      step="0.05"
+                      value={previewZoom}
+                      onChange={(e) => setPreviewZoom(parseFloat(e.target.value))}
+                      className="w-28 accent-yellow-500 h-1.5 rounded-full cursor-pointer"
+                    />
+                    <span className="text-[10px] font-black text-white w-10 text-center">{Math.round(previewZoom * 100)}%</span>
+                  </div>
+                  <button
+                    onClick={() => setPreviewZoom(prev => Math.min(1.5, prev + 0.1))}
+                    className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all active:scale-90"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-5 h-5" />
+                  </button>
+                  <div className="w-0 group-hover:w-px h-6 bg-white/10 transition-all duration-500" />
+                  <button
+                    onClick={() => setPreviewZoom(0.8)}
+                    className="p-2 rounded-full hover:bg-white/10 text-yellow-500 hover:text-yellow-400 transition-all active:scale-90 opacity-0 group-hover:opacity-100 w-0 group-hover:w-auto overflow-hidden"
+                    title="Reset Workspace"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setPreviewZoom(prev => Math.min(1.5, prev + 0.1))}
-                  className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all active:scale-90"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="w-5 h-5" />
-                </button>
-                <div className="w-px h-6 bg-white/10" />
-                <button
-                  onClick={() => setPreviewZoom(0.8)}
-                  className="p-2 rounded-full hover:bg-white/10 text-yellow-500 hover:text-yellow-400 transition-all active:scale-90"
-                  title="Reset Workspace"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
               </div>
             </div>
           )}
         </main>
       </div>
-    </div>
+    </div >
   );
 }
 
