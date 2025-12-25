@@ -50,7 +50,19 @@ export async function extractDataFromOCR(imageBase64, apiKey) {
  * Smart parser for the 100% accurate text from our OCR
  */
 function parseOCROutput(text) {
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    // 1. Pre-clean the text from common OCR table artifacts
+    const cleanedText = text
+        .replace(/[|\[\]\-_]/g, ' ') // Replace pipes, brackets, underscores, dashes with space
+        .replace(/\s+/g, ' ');       // Collapse multiple spaces
+
+    const lines = text.split('\n').map(l => {
+        // Clean each line individually while preserving structure
+        return l.trim()
+            .replace(/[|\[\]]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }).filter(l => l.length > 0);
+
     let sku = null;
     let headers = [];
     const data = [];
@@ -70,9 +82,13 @@ function parseOCROutput(text) {
         }
 
         // 2. Look for Header (e.g. SIZE UKURAN)
+        // We filter out headers that are just single characters or symbols
         if (!headerFound && headerKeywords.some(k => lowerLine.includes(k))) {
-            headers = line.split(/\s+/).filter(h => h.length > 0);
-            headerFound = true;
+            const rawHeaders = line.split(/\s+/).filter(h => h.length > 1 || /[a-zA-Z0-9]/.test(h));
+            if (rawHeaders.length > 0) {
+                headers = rawHeaders;
+                headerFound = true;
+            }
             continue;
         }
 
@@ -80,18 +96,16 @@ function parseOCROutput(text) {
         if (headerFound) {
             const row = line.split(/\s+/).filter(r => r.length > 0);
 
-            // Sometimes OCR might catch a stray line or character if table lines aren't removed
-            // But with our new preprocessor, it should be clean.
-            if (row.length >= 1) {
+            // Only add if it's not a stray line of dashes or symbols
+            if (row.length >= 1 && row.some(cell => /[a-zA-Z0-9]/.test(cell))) {
                 const rowObj = {};
                 headers.forEach((h, idx) => {
                     // Map data to headers by position
-                    // If row is shorter than headers, we just fill what we have
                     rowObj[h] = row[idx] || "";
 
-                    // Cleanup common OCR artifacts just in case
+                    // Specific cleanup for measurement values (removing stray non-alphanumeric at start/end)
                     if (typeof rowObj[h] === 'string') {
-                        rowObj[h] = rowObj[h].replace(/_/g, '');
+                        rowObj[h] = rowObj[h].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
                     }
                 });
                 data.push(rowObj);
