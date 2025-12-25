@@ -64,15 +64,13 @@ function parseOCROutput(text) {
     let notesLines = [];
 
     // 1. Precise SKU Detection
-    // Look for SKU, Article, Model, or Kode patterns
-    for (const line of cleanedLines.slice(0, 8)) { // SKU is usually at the top
+    for (const line of cleanedLines.slice(0, 10)) {
         const skuMatch = line.match(/(?:SKU|Article|Art|Model|Kode|Code|Style)[:\s]+([A-Z0-9\-]{3,})/i);
         if (skuMatch) {
             sku = skuMatch[1];
             break;
         }
-        // Fallback: If a line is just a short alphanumeric string (e.g. "G-1234"), it's likely the SKU
-        if (/^[A-Z0-9\-]{4,15}$/i.test(line) && !['SIZE', 'UKURAN'].includes(line.toUpperCase())) {
+        if (/^[A-Z0-9\-]{5,15}$/i.test(line) && !['SIZE', 'UKURAN'].includes(line.toUpperCase())) {
             sku = line;
         }
     }
@@ -86,8 +84,11 @@ function parseOCROutput(text) {
 
         // Detect Header
         if (!headerFound && headerKeywords.some(k => lowerLine.includes(k))) {
-            const potentialHeaders = line.split(/\s+/).filter(h => h.length > 1 || /[0-9]/.test(h));
-            if (potentialHeaders.length >= 2) { // Need at least 2 columns to be a table
+            const potentialHeaders = line.split(/\s+/)
+                .filter(h => h.length > 1 || /[0-9]/.test(h))
+                .map(h => h.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toUpperCase());
+
+            if (potentialHeaders.length >= 2) {
                 headers = potentialHeaders;
                 headerFound = true;
                 continue;
@@ -96,33 +97,31 @@ function parseOCROutput(text) {
 
         // Process Data Rows
         if (headerFound) {
-            const tokens = line.split(/\s+/);
+            // Split by whitespace and then clean each token from surrounding junk
+            const rawTokens = line.split(/\s+/);
+            const tokens = rawTokens.map(t => t.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')).filter(t => t.length > 0);
 
-            // Check if this looks like a data row (usually starts with a number or size label)
-            const isDataRow = tokens.length >= 1 && (
-                /^\d/.test(tokens[0]) || // Starts with number (39, 40...)
-                /^[SMLXL]/.test(tokens[0].toUpperCase()) // Starts with S, M, L...
-            );
+            // Check if it's a Footer/Note line
+            const isNote = lowerLine.includes('note') ||
+                lowerLine.includes('please') ||
+                lowerLine.includes('*)') ||
+                lowerLine.includes('guide') ||
+                rawTokens.length > 12;
 
-            // Check if it's a Footer/Note line instead
-            const isNote = lowerLine.includes('note') || lowerLine.includes('please') || lowerLine.includes('*)') || tokens.length > 10;
-
-            if (isDataRow && !isNote && tableRows.length < 50) { // Limit to 50 rows to avoid runaway
+            // Row is valid if it has content and is not a note
+            if (tokens.length >= 1 && !isNote && tableRows.length < 50) {
                 const rowObj = {};
                 headers.forEach((h, idx) => {
-                    // Smart mapping: if row is shorter than headers, we try to align.
+                    // Map data to headers by position
                     rowObj[h] = tokens[idx] || "";
-                    // Basic cleanup for cell values
-                    if (rowObj[h]) {
-                        rowObj[h] = rowObj[h].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
-                    }
                 });
-                tableRows.push(rowObj);
-            } else if (headerFound && tableRows.length > 0) {
-                // Collect everything after the table as potential notes
-                if (lowerLine.length > 5 && !isDataRow) {
-                    notesLines.push(line);
+
+                // Final check: Does it have actual data?
+                if (Object.values(rowObj).some(v => v.length > 0 && /[a-zA-Z0-9]/.test(v))) {
+                    tableRows.push(rowObj);
                 }
+            } else if (headerFound && tableRows.length > 0 && lowerLine.length > 5) {
+                notesLines.push(line);
             }
         }
     }
@@ -130,12 +129,11 @@ function parseOCROutput(text) {
     // 3. Notes Cleanup
     let notes = null;
     if (notesLines.length > 0) {
-        // Filter and clean note items
         const validNotes = notesLines
             .filter(l => l.length > 8 && !l.includes('---'))
-            .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim()) // Remove leading 1. 2.
+            .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim())
             .filter(l => l.length > 0)
-            .slice(0, 4); // Max 4 bullet points
+            .slice(0, 5);
 
         if (validNotes.length > 0) {
             notes = {
@@ -149,8 +147,8 @@ function parseOCROutput(text) {
         sku,
         notes,
         tableData: {
-            headers: headers.length > 0 ? headers : ["Size", "Measurement"],
-            data: tableRows.length > 0 ? tableRows : [{ "Size": "-", "Measurement": "-" }]
+            headers: headers.length > 0 ? headers : ["SIZE", "UKURAN"],
+            data: tableRows.length > 0 ? tableRows : [{ "SIZE": "-", "UKURAN": "-" }]
         }
     };
 }
