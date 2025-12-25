@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  size-chart-generator:
+    build: .
+    container_name: size-chart-generator
+    restart: unless-stopped
+    networks:
+      - ocr-network
+
+networks:
+  ocr-network:
+    external: true

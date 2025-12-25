@@ -1,0 +1,373 @@
+import React, { useState, useEffect } from 'react';
+import { Loader2, Settings, Key, Download } from 'lucide-react';
+import { ImageUpload } from './components/ImageUpload';
+import { DataEditor } from './components/DataEditor';
+import { BrandSelector } from './components/BrandSelector';
+import { extractDataWithGemini } from './lib/gemini';
+import { ChartPreview } from './components/ChartPreview';
+import { StyleControls } from './components/StyleControls';
+import { BackgroundPresets } from './components/BackgroundPresets';
+import { ColorPresets } from './components/ColorPresets';
+import html2canvas from 'html2canvas';
+
+function App() {
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [chartData, setChartData] = useState(null);
+  const [selectedBrand, setSelectedBrand] = useState(null);
+  const [apiKey, setApiKey] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [customTemplate, setCustomTemplate] = useState(null);
+  const [error, setError] = useState(null);
+  const [chartStyles, setChartStyles] = useState({
+    scale: 1,
+    x: 0,
+    y: 0,
+    headerColor: '#000000',
+    rowColor: '#f3f4f6',
+    textColor: '#000000',
+    title: ''
+  });
+
+  useEffect(() => {
+    const storedKey = localStorage.getItem('gemini_api_key');
+    if (storedKey) setApiKey(storedKey);
+  }, []);
+
+  const handleSaveKey = (key) => {
+    setApiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+    setShowSettings(false);
+  };
+
+  const processImage = async (imageData) => {
+    setIsProcessing(true);
+    setError(null);
+    try {
+      const data = await extractDataWithGemini(apiKey, imageData);
+      setChartData(data);
+    } catch (err) {
+      console.error("Processing error:", err);
+      let errorMessage = err.message || "Failed to process image";
+
+      if (errorMessage.includes("404") && errorMessage.includes("not found")) {
+        errorMessage = "The AI model is currently unavailable. Please check your API key or try again later.";
+      } else if (errorMessage.includes("API key")) {
+        errorMessage = "Invalid API Key. Please check your settings.";
+      }
+
+      setError(errorMessage);
+      setChartData(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleImageSelect = async (imageData) => {
+    setSelectedImage(imageData);
+    setChartData(null);
+    setError(null);
+
+    if (imageData) {
+      if (!apiKey) {
+        setShowSettings(true);
+      }
+      // Don't auto-process. Let user click "Generate" button.
+    }
+  };
+
+  const handleBrandSelect = (brand) => {
+    setSelectedBrand(brand);
+  };
+
+  const handleLogoUpload = (logoData) => {
+    if (selectedBrand && selectedBrand.id === 'custom') {
+      setSelectedBrand({ ...selectedBrand, logo: logoData });
+    }
+  };
+
+  const handleCustomBackgroundUpload = (backgroundData) => {
+    setCustomTemplate(backgroundData);
+  };
+
+  const handleStyleChange = (newStyles) => {
+    setChartStyles(newStyles);
+  };
+
+  const handlePositionChange = (pos) => {
+    setChartStyles(prev => ({ ...prev, x: pos.x, y: pos.y }));
+  };
+
+  const handleExport = async (format) => {
+    const chartElement = document.getElementById('chart-preview');
+    if (!chartElement) {
+      alert('Chart preview not found!');
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(chartElement, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 1080,
+        height: 1080
+      });
+
+      const imageType = format === 'jpg' ? 'jpeg' : format;
+      const image = canvas.toDataURL(`image/${imageType}`, 0.95);
+
+      // Create download link
+      const link = document.createElement('a');
+      link.href = image;
+      link.download = `size-chart.${imageType}`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+
+      // Trigger download
+      link.click();
+
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+
+      console.log(`Successfully exported as ${imageType}`);
+    } catch (error) {
+      console.error('Error exporting chart:', error);
+      alert(`Failed to export as ${format}. Please check console for details.`);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-foreground p-4 flex flex-col relative">
+      <button
+        onClick={() => setShowSettings(!showSettings)}
+        className="absolute top-4 right-4 p-2 rounded-full hover:bg-muted transition-colors z-50"
+      >
+        <Settings className="w-6 h-6" />
+      </button>
+
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-card p-6 rounded-xl shadow-xl w-full max-w-md space-y-4">
+            <div className="flex items-center gap-2 text-lg font-bold">
+              <Key className="w-5 h-5" />
+              <h3>Gemini API Key</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Enter your Google Gemini API key to enable AI features.
+              The key is stored locally in your browser.
+            </p>
+            <input
+              type="password"
+              placeholder="Paste your API key here"
+              className="w-full p-2 border rounded-md bg-background"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowSettings(false)}
+                className="px-4 py-2 text-sm hover:bg-muted rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSaveKey(apiKey)}
+                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                Save Key
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compact Header */}
+      <header className="mb-6 text-center space-y-1">
+        <h1 className="text-3xl font-bold tracking-tight">Size Chart Generator</h1>
+        <p className="text-sm text-muted-foreground">Transform your size charts into premium 1:1 graphics</p>
+      </header>
+
+      {/* Main Content - Compact Layout */}
+      <main className="flex-1 w-full overflow-hidden">
+        {error && (
+          <div className="absolute inset-0 bg-black/50 z-40 flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-card p-4 rounded-xl shadow-xl max-w-md w-full">
+              <p className="font-medium mb-3">{error}</p>
+              <button
+                onClick={() => processImage(selectedImage)}
+                className="underline hover:text-destructive/80"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex h-full">
+          {/* Left Panel - Controls (Compact) */}
+          <div className="w-2/5 p-3 border-r bg-card overflow-y-auto">
+            <div className="space-y-3">
+              {/* Image Upload */}
+              <ImageUpload onImageSelect={handleImageSelect} />
+
+              {/* Generate Button */}
+              {!isProcessing && !chartData && selectedImage && !error && (
+                <div className="flex flex-col gap-2">
+                  {!apiKey ? (
+                    <button
+                      onClick={() => setShowSettings(true)}
+                      className="w-full bg-primary text-primary-foreground px-3 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Key className="w-4 h-4" />
+                      Enter API Key to Analyze
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => processImage(selectedImage)}
+                      className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm"
+                    >
+                      <Loader2 className="w-4 h-4" />
+                      Generate Size Chart
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Processing Indicator */}
+              {isProcessing && (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground py-4">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    <p className="text-sm font-medium">Analyzing image with AI...</p>
+                  </div>
+                  <button
+                    onClick={() => setIsProcessing(false)}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {/* Controls Panel */}
+              {!isProcessing && chartData && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-500">
+                  {/* Brand Selector (Full Width) */}
+                  <div className="bg-card p-3 rounded-lg border">
+                    <BrandSelector
+                      selectedBrand={selectedBrand}
+                      onSelect={handleBrandSelect}
+                      onLogoUpload={handleLogoUpload}
+                    />
+                  </div>
+
+                  {/* Background and Color Presets Row */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-card p-3 rounded-lg border">
+                      <BackgroundPresets
+                        currentTemplate={customTemplate}
+                        onTemplateSelect={setCustomTemplate}
+                        currentStyles={chartStyles}
+                        onStyleChange={handleStyleChange}
+                        onCustomBackgroundUpload={handleCustomBackgroundUpload}
+                      />
+                    </div>
+                    <div className="bg-card p-3 rounded-lg border">
+                      <ColorPresets
+                        styles={chartStyles}
+                        onStyleChange={handleStyleChange}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Style Controls */}
+                  <div className="bg-card p-3 rounded-lg border">
+                    <StyleControls
+                      styles={chartStyles}
+                      onStyleChange={handleStyleChange}
+                    />
+                  </div>
+
+                  {/* Data Editor */}
+                  <div className="bg-card p-3 rounded-lg border">
+                    <DataEditor
+                      initialData={chartData}
+                      onSave={(data) => setChartData(data)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Panel - Preview (Full Width) */}
+          <div className="w-3/5 p-3 overflow-y-auto">
+            {!isProcessing && chartData && (selectedBrand || customTemplate) && (
+              <div className="h-full flex flex-col animate-in fade-in">
+                {/* Sticky Header */}
+                <div className="sticky top-0 bg-background p-3 border-b rounded-t-lg flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Preview</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleExport('jpeg')}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                      <Download className="w-4 h-4" /> JPEG
+                    </button>
+                    <button
+                      onClick={() => handleExport('png')}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                    >
+                      <Download className="w-4 h-4" /> PNG
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview Content */}
+                <div className="flex-1 flex items-center justify-center p-4 bg-muted/20 rounded-b-lg">
+                  <div className="origin-top scale-[0.8] w-[1080px] h-[1080px] -mb-[216px]">
+                    {/* Scale 0.8 means 1080 * 0.8 = 864px height.
+                        Margin bottom adjustment: 1080 - 864 = 216px negative margin to reclaim space */}
+                    <ChartPreview
+                        id="chart-preview"
+                        data={chartData}
+                        brand={selectedBrand}
+                        template={customTemplate}
+                        styles={chartStyles}
+                        onPositionChange={handlePositionChange}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            </div>
+
+            {/* Empty State */}
+            {!isProcessing && (!chartData || (!selectedBrand && !customTemplate)) && (
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <div className="w-24 h-24 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                    <svg className="w-12 h-12 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">No Preview Available</h3>
+                  <p className="text-sm">
+                    {!chartData ? "Generate a size chart first" : "Select a brand or template to see preview"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+      </main>
+        </div>
+    </div>
+  );
+}
+
+export default App;
