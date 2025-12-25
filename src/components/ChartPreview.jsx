@@ -380,14 +380,104 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
         const handleScaleStart = (e, corner) => {
             e.stopPropagation();
             e.preventDefault();
-            // For now, just prevent drag - scale can be added later
+
+            isDragging.current = true;
+            const elementStyles = styles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
+
+            dragStart.current = {
+                type: 'scale',
+                corner,
+                startX: e.clientX,
+                startY: e.clientY,
+                startScale: elementStyles.scale || 1,
+                elementType: elementType
+            };
+
+            document.addEventListener('mousemove', handleTransformMove);
+            document.addEventListener('mouseup', handleTransformMouseUp);
         };
 
         const handleRotateStart = (e) => {
             e.stopPropagation();
             e.preventDefault();
-            // Rotation functionality can be added later
+
+            const element = e.currentTarget.closest('.gpu-accelerated');
+            if (!element) return;
+
+            const rect = element.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            isDragging.current = true;
+            const elementStyles = styles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
+
+            dragStart.current = {
+                type: 'rotate',
+                centerX,
+                centerY,
+                startAngle: Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI),
+                currentRotation: elementStyles.rotate || 0,
+                elementType: elementType
+            };
+
+            document.addEventListener('mousemove', handleTransformMove);
+            document.addEventListener('mouseup', handleTransformMouseUp);
         };
+
+        const handleTransformMove = (e) => {
+            if (!isDragging.current) return;
+            const ds = dragStart.current;
+            const elementType = ds.elementType;
+
+            if (ds.type === 'scale') {
+                const diffX = e.clientX - ds.startX;
+                const diffY = e.clientY - ds.startY;
+                const distance = Math.sqrt(diffX * diffX + diffY * diffY);
+                const direction = (diffX + diffY) > 0 ? 1 : -1;
+
+                // Simple proportional scaling
+                const newScale = Math.max(0.1, ds.startScale + (direction * distance * 0.005));
+
+                requestAnimationFrame(() => {
+                    const updatedStyles = {
+                        ...styles,
+                        [elementType]: {
+                            ...styles[elementType],
+                            scale: newScale
+                        }
+                    };
+                    onPositionChange(updatedStyles);
+                });
+            } else if (ds.type === 'rotate') {
+                const angle = Math.atan2(e.clientY - ds.centerY, e.clientX - ds.centerX) * (180 / Math.PI);
+                let newRotate = ds.currentRotation + (angle - ds.startAngle);
+
+                // Snap to 45 degree increments if shift is held
+                if (e.shiftKey) {
+                    newRotate = Math.round(newRotate / 45) * 45;
+                }
+
+                requestAnimationFrame(() => {
+                    const updatedStyles = {
+                        ...styles,
+                        [elementType]: {
+                            ...styles[elementType],
+                            rotate: newRotate
+                        }
+                    };
+                    onPositionChange(updatedStyles);
+                });
+            }
+        };
+
+        const handleTransformMouseUp = () => {
+            isDragging.current = false;
+            document.removeEventListener('mousemove', handleTransformMove);
+            document.removeEventListener('mouseup', handleTransformMouseUp);
+        };
+
+        const elementStyles = styles[elementType] || {};
+        const rotation = elementStyles.rotate || 0;
 
         return (
             <div
@@ -396,7 +486,9 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                 onMouseEnter={() => setHoveredElement(elementType)}
                 onMouseLeave={() => setHoveredElement(null)}
                 style={{
-                    cursor: isSelected ? 'move' : 'pointer'
+                    cursor: isSelected ? 'move' : 'pointer',
+                    transformOrigin: 'center center',
+                    transform: `rotate(${rotation}deg)`
                 }}
             >
                 {children}
@@ -449,11 +541,11 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
                         {/* Rotate handle */}
                         <div
-                            className="export-hidden absolute -top-6 -right-6 w-5 h-5 cursor-grab flex items-center justify-center"
+                            className="export-hidden absolute -top-6 left-1/2 -translate-x-1/2 w-6 h-6 cursor-grab flex items-center justify-center bg-white rounded-full border border-blue-500 shadow-md"
                             onMouseDown={handleRotateStart}
                             title="Rotate"
                         >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
                                 <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.12 0 4.07.74 5.61 1.97" />
                                 <path d="M21 3v6h-6" />
                             </svg>
@@ -490,7 +582,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                         hasTemplate ? "absolute" : "w-full p-16"
                     )}
                         style={hasTemplate ? {
-                            transform: `translate(${currentStyles.x || 0}px, ${currentStyles.y || 0}px) scale(${currentStyles.scale || 1})`,
+                            transform: `translate(${currentStyles.x || 0}px, ${currentStyles.y || 0}px) scale(${currentStyles.scale || 1}) rotate(${currentStyles.rotate || 0}deg)`,
                         } : {}}>
 
                         {/* Brand Logo */}
@@ -505,8 +597,9 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                                     <img
                                         src={brand.logo}
                                         alt={brand.name}
-                                        className="h-32 w-auto object-contain"
+                                        className="h-32 w-auto object-contain pointer-events-none select-none"
                                         style={{ maxHeight: '120px', maxWidth: '300px' }}
+                                        draggable="false"
                                     />
                                 </BoundingBox>
                             </div>
@@ -528,14 +621,14 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                         )}
 
                         {/* The Table */}
-                        <div
-                            className={cn("overflow-hidden rounded-2xl transition-transform duration-75 ease-out gpu-accelerated", "w-full")}
-                            style={{
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                                transform: `translate(${currentStyles.table?.x || 0}px, ${currentStyles.table?.y || 0}px) scale(${currentStyles.table?.scale || 1})`
-                            }}
-                        >
-                            <BoundingBox elementType="table" className="block">
+                        <BoundingBox elementType="table" className="block w-full">
+                            <div
+                                className={cn("overflow-hidden rounded-2xl w-full transition-transform duration-75 ease-out gpu-accelerated")}
+                                style={{
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                    transform: `translate(${currentStyles.table?.x || 0}px, ${currentStyles.table?.y || 0}px) scale(${currentStyles.table?.scale || 1})`
+                                }}
+                            >
                                 <table className="text-center border-collapse rounded-2xl overflow-hidden w-full" style={{ minWidth: '600px' }}>
                                     <thead>
                                         <tr style={{ backgroundColor: currentStyles.headerColor, color: '#ffffff' }}>
@@ -574,8 +667,8 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                                         ))}
                                     </tbody>
                                 </table>
-                            </BoundingBox>
-                        </div>
+                            </div>
+                        </BoundingBox>
 
                         {/* Note Section */}
                         <div
