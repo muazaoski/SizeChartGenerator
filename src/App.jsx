@@ -306,14 +306,28 @@ function App() {
           height: '1080px',
         },
         filter: (node) => {
-          return !node.classList?.contains('pointer-events-none') &&
-            !node.classList?.contains('border') &&
-            !node.classList?.contains('export-hidden');
+          // Keep all image elements (logos, backgrounds)
+          if (node.tagName === 'IMG') return true;
+
+          // Exclude hidden export elements and decorative overlays
+          if (node.classList?.contains('export-hidden')) return false;
+
+          // Exclude the dotted background overlay (it has both pointer-events-none AND opacity-5)
+          if (node.classList?.contains('pointer-events-none') &&
+            node.classList?.contains('opacity-5')) return false;
+
+          // Exclude the border overlay at the end
+          if (node.classList?.contains('pointer-events-none') &&
+            node.classList?.contains('border') &&
+            node.classList?.contains('bg-transparent')) return false;
+
+          return true;
         },
         cacheBust: true,
-        includeFontFaces: true,
-        includeStyle: true,
+        imagePlaceholder: undefined,
+        skipAutoScale: false,
       });
+
 
       Object.assign(chartElement.style, originalStyles);
       chartElement.className = originalStyles.className;
