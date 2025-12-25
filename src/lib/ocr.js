@@ -126,31 +126,9 @@ function parseOCROutput(text) {
         }
     }
 
-    // 4. Notes Formatting
-    let notes = null;
-    if (notesLines.length > 0) {
-        const validNotes = notesLines
-            .filter(l => l.length > 10)
-            .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim())
-            .slice(0, 5);
-
-        if (validNotes.length > 0) {
-            notes = {
-                title: 'Please note:',
-                items: validNotes.map((text, i) => `${i + 1}. ${text}`)
-            };
-        }
-    }
-
-    // If no SKU found at the top, try a final global regex search
-    if (!sku) {
-        const globalSkuMatch = text.match(/(?:SKU|Art)[:\s]+([A-Z0-9\-]+)/i);
-        if (globalSkuMatch) sku = globalSkuMatch[1];
-    }
-
     return {
         sku: sku || "",
-        notes: notes,
+        notes: null, // User wants notes to be default/manual only
         tableData: {
             headers: headers,
             data: tableRows.length > 0 ? tableRows : [{ "SIZE": "-", "UKURAN": "-" }]
