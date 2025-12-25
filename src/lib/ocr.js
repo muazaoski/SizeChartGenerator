@@ -47,77 +47,110 @@ export async function extractDataFromOCR(imageBase64, apiKey) {
 }
 
 /**
- * Smart parser for the 100% accurate text from our OCR
+ * State-of-the-art parser for size chart OCR results.
+ * Handles messy text, artifacts, and multi-line layouts.
  */
 function parseOCROutput(text) {
-    // 1. Pre-clean the text from common OCR table artifacts
-    const cleanedText = text
-        .replace(/[|\[\]\-_]/g, ' ') // Replace pipes, brackets, underscores, dashes with space
-        .replace(/\s+/g, ' ');       // Collapse multiple spaces
-
-    const lines = text.split('\n').map(l => {
-        // Clean each line individually while preserving structure
-        return l.trim()
-            .replace(/[|\[\]]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
+    const rawLines = text.split('\n');
+    const cleanedLines = rawLines.map(line => {
+        // Remove pipes and weird brackets but keep letters, numbers, and common symbols
+        return line.replace(/[|\[\]_]/g, ' ').replace(/\s+/g, ' ').trim();
     }).filter(l => l.length > 0);
 
     let sku = null;
     let headers = [];
-    const data = [];
+    const tableRows = [];
     let headerFound = false;
+    let notesLines = [];
 
-    // Keywords to identify headers
-    const headerKeywords = ['size', 'ukuran', 'eu', 'us', 'uk', 'cm', 'mm', 'inch', 'length', 'lebar', 'panjang'];
+    // 1. Precise SKU Detection
+    // Look for SKU, Article, Model, or Kode patterns
+    for (const line of cleanedLines.slice(0, 8)) { // SKU is usually at the top
+        const skuMatch = line.match(/(?:SKU|Article|Art|Model|Kode|Code|Style)[:\s]+([A-Z0-9\-]{3,})/i);
+        if (skuMatch) {
+            sku = skuMatch[1];
+            break;
+        }
+        // Fallback: If a line is just a short alphanumeric string (e.g. "G-1234"), it's likely the SKU
+        if (/^[A-Z0-9\-]{4,15}$/i.test(line) && !['SIZE', 'UKURAN'].includes(line.toUpperCase())) {
+            sku = line;
+        }
+    }
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+    // 2. Header & Data Extraction
+    const headerKeywords = ['size', 'ukuran', 'eu', 'us', 'uk', 'cm', 'mm', 'inch', 'len', 'foot', 'panjang'];
+
+    for (let i = 0; i < cleanedLines.length; i++) {
+        const line = cleanedLines[i];
         const lowerLine = line.toLowerCase();
 
-        // 1. Check for SKU
-        if (lowerLine.includes('sku')) {
-            sku = line.replace(/sku[:\s]*/i, '').trim();
-            continue;
-        }
-
-        // 2. Look for Header (e.g. SIZE UKURAN)
-        // We filter out headers that are just single characters or symbols
+        // Detect Header
         if (!headerFound && headerKeywords.some(k => lowerLine.includes(k))) {
-            const rawHeaders = line.split(/\s+/).filter(h => h.length > 1 || /[a-zA-Z0-9]/.test(h));
-            if (rawHeaders.length > 0) {
-                headers = rawHeaders;
+            const potentialHeaders = line.split(/\s+/).filter(h => h.length > 1 || /[0-9]/.test(h));
+            if (potentialHeaders.length >= 2) { // Need at least 2 columns to be a table
+                headers = potentialHeaders;
                 headerFound = true;
+                continue;
             }
-            continue;
         }
 
-        // 3. Process Data Rows
+        // Process Data Rows
         if (headerFound) {
-            const row = line.split(/\s+/).filter(r => r.length > 0);
+            const tokens = line.split(/\s+/);
 
-            // Only add if it's not a stray line of dashes or symbols
-            if (row.length >= 1 && row.some(cell => /[a-zA-Z0-9]/.test(cell))) {
+            // Check if this looks like a data row (usually starts with a number or size label)
+            const isDataRow = tokens.length >= 1 && (
+                /^\d/.test(tokens[0]) || // Starts with number (39, 40...)
+                /^[SMLXL]/.test(tokens[0].toUpperCase()) // Starts with S, M, L...
+            );
+
+            // Check if it's a Footer/Note line instead
+            const isNote = lowerLine.includes('note') || lowerLine.includes('please') || lowerLine.includes('*)') || tokens.length > 10;
+
+            if (isDataRow && !isNote && tableRows.length < 50) { // Limit to 50 rows to avoid runaway
                 const rowObj = {};
                 headers.forEach((h, idx) => {
-                    // Map data to headers by position
-                    rowObj[h] = row[idx] || "";
-
-                    // Specific cleanup for measurement values (removing stray non-alphanumeric at start/end)
-                    if (typeof rowObj[h] === 'string') {
+                    // Smart mapping: if row is shorter than headers, we try to align.
+                    rowObj[h] = tokens[idx] || "";
+                    // Basic cleanup for cell values
+                    if (rowObj[h]) {
                         rowObj[h] = rowObj[h].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
                     }
                 });
-                data.push(rowObj);
+                tableRows.push(rowObj);
+            } else if (headerFound && tableRows.length > 0) {
+                // Collect everything after the table as potential notes
+                if (lowerLine.length > 5 && !isDataRow) {
+                    notesLines.push(line);
+                }
             }
+        }
+    }
+
+    // 3. Notes Cleanup
+    let notes = null;
+    if (notesLines.length > 0) {
+        // Filter and clean note items
+        const validNotes = notesLines
+            .filter(l => l.length > 8 && !l.includes('---'))
+            .map(l => l.replace(/^\d+[\.\)]\s*/, '').trim()) // Remove leading 1. 2.
+            .filter(l => l.length > 0)
+            .slice(0, 4); // Max 4 bullet points
+
+        if (validNotes.length > 0) {
+            notes = {
+                title: 'Please note:',
+                items: validNotes.map((text, i) => `${i + 1}. ${text}`)
+            };
         }
     }
 
     return {
         sku,
+        notes,
         tableData: {
             headers: headers.length > 0 ? headers : ["Size", "Measurement"],
-            data: data
+            data: tableRows.length > 0 ? tableRows : [{ "Size": "-", "Measurement": "-" }]
         }
     };
 }

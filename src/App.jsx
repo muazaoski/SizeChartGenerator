@@ -24,7 +24,6 @@ function App() {
   const [sku, setSku] = useState(null);
   const [selectedElement, setSelectedElement] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState('upload');
   const [chartStyles, setChartStyles] = useState({
     scale: 1,
     x: 0,
@@ -35,8 +34,10 @@ function App() {
     title: '',
     logo: { x: 0, y: 0, scale: 1 },
     table: { x: 0, y: 0, scale: 1 },
-    note: { x: 0, y: 0, scale: 1 }
+    note: { x: 0, y: 0, scale: 1 },
+    notesContent: null
   });
+
 
   useEffect(() => {
     const storedKey = localStorage.getItem('gemini_api_key');
@@ -64,11 +65,14 @@ function App() {
     setIsProcessing(true);
     setError(null);
     try {
-      const { tableData, sku: extractedSku } = await extractDataFromOCR(imageData);
+      const { tableData, sku: extractedSku, notes } = await extractDataFromOCR(imageData, apiKey);
 
       setChartData(tableData);
       if (extractedSku) {
         setSku(extractedSku);
+      }
+      if (notes) {
+        setChartStyles(prev => ({ ...prev, notesContent: notes }));
       }
     } catch (err) {
       console.error("Processing error:", err);
@@ -642,8 +646,10 @@ function App() {
                 onPositionChange={handlePositionChange}
                 onExport={handleExport}
                 sku={sku}
+                notes={chartStyles.notesContent}
                 onDataChange={(newData) => setChartData(newData)}
                 onSkuChange={(newSku) => setSku(newSku)}
+                onNotesChange={(newNotes) => setChartStyles(prev => ({ ...prev, notesContent: newNotes }))}
                 className="w-full h-full max-w-[1080px] max-h-[1080px] object-contain"
               />
             </div>
