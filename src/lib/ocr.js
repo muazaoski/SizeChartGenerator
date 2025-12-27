@@ -151,22 +151,27 @@ function parseAIResponse(aiResult) {
                 if (firstMeasurement && typeof firstMeasurement === 'object' && 'value' in firstMeasurement) {
                     // Alternative format: each measurement key has {size, value, unit}
                     console.log("Detected alternative format (value-based)");
-                    const uniqueMeasurementTypes = [...new Set(measurementKeys.map(k => k.replace(/_/g, ' ').toUpperCase()))];
+                    // Filter out 'size' as a measurement type - it conflicts with the SIZE column
+                    const filteredKeys = measurementKeys.filter(k => k.toLowerCase() !== 'size');
+                    const uniqueMeasurementTypes = [...new Set(filteredKeys.map(k => k.replace(/_/g, ' ').toUpperCase()))];
                     const headers = ["SIZE", ...uniqueMeasurementTypes];
+                    console.log("Filtered headers:", headers);
 
                     const dataMap = {};
                     sizes.forEach(size => {
                         dataMap[size] = { SIZE: size };
                         uniqueMeasurementTypes.forEach(mt => {
-                            dataMap[size][mt] = "";
+                            if (mt !== "SIZE") {  // Extra safety check
+                                dataMap[size][mt] = "";
+                            }
                         });
                     });
 
-                    measurementKeys.forEach(key => {
+                    filteredKeys.forEach(key => {
                         const measurement = measurements[key];
                         if (measurement && measurement.size && measurement.value) {
                             const measurementType = key.replace(/_/g, ' ').toUpperCase();
-                            if (dataMap[measurement.size]) {
+                            if (dataMap[measurement.size] && measurementType !== "SIZE") {
                                 dataMap[measurement.size][measurementType] = measurement.value;
                             }
                         }
