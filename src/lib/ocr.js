@@ -182,7 +182,7 @@ function parseAIResponse(aiResult) {
 
                     return {
                         sku: jsonData.sku || "",
-                        notes: jsonData.notes || null,
+                        notes: null,  // AI returns string, component expects object format
                         tableData: {
                             headers: headers,
                             data: data.length > 0 ? data : [{ "SIZE": "-", "UKURAN": "-" }]
@@ -214,7 +214,7 @@ function parseAIResponse(aiResult) {
 
                 const result = {
                     sku: jsonData.sku || "",
-                    notes: jsonData.notes || null,
+                    notes: null,  // AI returns string, component expects object format - use default
                     tableData: {
                         headers: headers,
                         data: data.length > 0 ? data : [{ "SIZE": "-", "UKURAN": "-" }]
