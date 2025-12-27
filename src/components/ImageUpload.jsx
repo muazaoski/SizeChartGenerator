@@ -1,11 +1,43 @@
-import React, { useCallback, useState } from 'react';
-import { Upload, X, FileImage, ImagePlus } from 'lucide-react';
+import React, { useCallback, useState, useEffect } from 'react';
+import { Upload, X, FileImage, ImagePlus, Clipboard, FolderOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { extractSKUFromImage } from '../lib/skuExtractor';
 
-export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
+export function ImageUpload({
+    onImageSelect,
+    onBatchAdd,
+    apiKey,
+    batchMode = false
+}) {
     const [isDragging, setIsDragging] = useState(false);
     const [preview, setPreview] = useState(null);
+
+    // Paste event handler
+    useEffect(() => {
+        const handlePaste = (e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            const imageItems = [];
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.startsWith('image/')) {
+                    const file = items[i].getAsFile();
+                    if (file) imageItems.push(file);
+                }
+            }
+
+            if (imageItems.length > 0) {
+                e.preventDefault();
+                if (batchMode || imageItems.length > 1) {
+                    imageItems.forEach(file => handleFileForBatch(file));
+                } else {
+                    handleFiles(imageItems[0]);
+                }
+            }
+        };
+
+        document.addEventListener('paste', handlePaste);
+        return () => document.removeEventListener('paste', handlePaste);
+    }, [batchMode, onBatchAdd, onImageSelect]);
 
     const handleDrag = useCallback((e) => {
         e.preventDefault();
@@ -22,16 +54,46 @@ export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
         e.stopPropagation();
         setIsDragging(false);
 
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            handleFiles(e.dataTransfer.files[0]);
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+
+        if (files.length > 1 || batchMode) {
+            files.forEach(file => handleFileForBatch(file));
+        } else if (files.length === 1) {
+            handleFiles(files[0]);
         }
-    }, []);
+    }, [batchMode, onBatchAdd, onImageSelect]);
 
     const handleChange = (e) => {
         e.preventDefault();
-        if (e.target.files && e.target.files[0]) {
-            handleFiles(e.target.files[0]);
+        const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+
+        if (files.length > 1 || batchMode) {
+            files.forEach(file => handleFileForBatch(file));
+        } else if (files.length === 1) {
+            handleFiles(files[0]);
         }
+
+        // Reset input
+        e.target.value = '';
+    };
+
+    const handleFileForBatch = async (file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (onBatchAdd) {
+                onBatchAdd({
+                    id: crypto.randomUUID(),
+                    file,
+                    preview: reader.result,
+                    status: 'pending',
+                    presetId: null,
+                    result: null,
+                    error: null,
+                    processingTime: 0
+                });
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleFiles = async (file) => {
@@ -40,7 +102,6 @@ export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
             reader.onloadend = async () => {
                 setPreview(reader.result);
                 onImageSelect(reader.result);
-                // SKU extraction is now handled during the main processing step
             };
             reader.readAsDataURL(file);
         }
@@ -53,7 +114,7 @@ export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
     };
 
     return (
-        <div className="w-full">
+        <div className="w-full space-y-3">
             <div
                 className={cn(
                     "relative rounded-2xl transition-all duration-300 ease-out flex flex-col items-center justify-center text-center cursor-pointer overflow-hidden group",
@@ -75,6 +136,7 @@ export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
                     type="file"
                     className="hidden"
                     accept="image/*"
+                    multiple={batchMode}
                     onChange={handleChange}
                 />
 
@@ -110,14 +172,28 @@ export function ImageUpload({ onImageSelect, onSKUExtracted, apiKey }) {
                             <Upload className="w-6 h-6 text-black" />
                         </div>
                         <div className="space-y-1">
-                            <h3 className="text-base font-bold text-white uppercase tracking-wider">Deploy Artifact</h3>
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                                {batchMode ? 'Add Images' : 'Deploy Artifact'}
+                            </h3>
                             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">
                                 Drag & Drop or Click to Select
                             </p>
                         </div>
-                        <div className="flex items-center justify-center gap-1.5 text-[10px] text-gray-600">
-                            <FileImage className="w-3 h-3" />
-                            <span>JPG, PNG, WEBP</span>
+                        <div className="flex items-center justify-center gap-3 text-[10px] text-gray-600">
+                            <span className="flex items-center gap-1">
+                                <FileImage className="w-3 h-3" />
+                                JPG, PNG, WEBP
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <Clipboard className="w-3 h-3" />
+                                Ctrl+V to paste
+                            </span>
+                            {batchMode && (
+                                <span className="flex items-center gap-1">
+                                    <FolderOpen className="w-3 h-3" />
+                                    Multi-select
+                                </span>
+                            )}
                         </div>
                     </div>
                 )}

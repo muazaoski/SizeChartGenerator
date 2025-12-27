@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Settings, Key, Download, Info, Upload, Palette, Layout, Sliders, Table, ChevronLeft, ChevronRight, Sparkles, X, Eye, Image, Wand2, ZoomIn, ZoomOut, RotateCcw, Plus } from 'lucide-react';
+import { Loader2, Settings, Key, Download, Info, Upload, Palette, Layout, Sliders, Table, ChevronLeft, ChevronRight, Sparkles, X, Eye, Image, Wand2, ZoomIn, ZoomOut, RotateCcw, Plus, Star, Layers, Clock } from 'lucide-react';
 import { ImageUpload } from './components/ImageUpload';
 import { DataEditor } from './components/DataEditor';
 import { BrandSelector } from './components/BrandSelector';
@@ -8,6 +8,9 @@ import { ChartPreview } from './components/ChartPreview';
 import { StyleControls } from './components/StyleControls';
 import { BackgroundPresets } from './components/BackgroundPresets';
 import { ColorPresets } from './components/ColorPresets';
+import { PresetManager } from './components/PresetManager';
+import { BatchQueue } from './components/BatchQueue';
+import { BatchReview } from './components/BatchReview';
 import { toJpeg } from 'html-to-image';
 
 function App() {
@@ -26,6 +29,15 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
   const [previewZoom, setPreviewZoom] = useState(0.8);
+
+  // Timer and batch states
+  const [processingTime, setProcessingTime] = useState(0);
+  const [batchQueue, setBatchQueue] = useState([]);
+  const [batchMode, setBatchMode] = useState(false);
+  const [showBatchReview, setShowBatchReview] = useState(false);
+  const [showPresetManager, setShowPresetManager] = useState(false);
+  const [batchResults, setBatchResults] = useState([]);
+  const processingTimerRef = useRef(null);
   const [chartStyles, setChartStyles] = useState({
     scale: 1,
     x: 0,
@@ -172,6 +184,14 @@ function App() {
   const processImage = async (imageData) => {
     setIsProcessing(true);
     setError(null);
+    setProcessingTime(0);
+
+    // Start timer
+    const startTime = Date.now();
+    processingTimerRef.current = setInterval(() => {
+      setProcessingTime((Date.now() - startTime) / 1000);
+    }, 100);
+
     try {
       const { tableData, sku: extractedSku, notes } = await extractDataFromOCR(imageData, apiKey);
 
@@ -187,6 +207,12 @@ function App() {
       setError(err.message || "Failed to process image with Custom OCR");
       setChartData(null);
     } finally {
+      // Stop timer
+      if (processingTimerRef.current) {
+        clearInterval(processingTimerRef.current);
+        processingTimerRef.current = null;
+      }
+      setProcessingTime((Date.now() - startTime) / 1000);
       setIsProcessing(false);
     }
   };
@@ -199,6 +225,89 @@ function App() {
 
   const handleBrandSelect = (brand) => {
     setSelectedBrand(brand);
+  };
+
+  // ========== BATCH PROCESSING HANDLERS ==========
+
+  const handleBatchAdd = (item) => {
+    setBatchQueue(prev => [...prev, item]);
+    if (!batchMode) setBatchMode(true);
+  };
+
+  const handleBatchRemove = (id) => {
+    setBatchQueue(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleBatchClear = () => {
+    setBatchQueue([]);
+    setBatchResults([]);
+    setBatchMode(false);
+  };
+
+  const handleProcessSingle = async (id) => {
+    const item = batchQueue.find(i => i.id === id);
+    if (!item) return;
+
+    // Update status
+    setBatchQueue(prev => prev.map(i =>
+      i.id === id ? { ...i, status: 'processing' } : i
+    ));
+
+    const startTime = Date.now();
+    try {
+      const { tableData, sku: extractedSku } = await extractDataFromOCR(item.preview, apiKey);
+      const elapsed = (Date.now() - startTime) / 1000;
+
+      setBatchQueue(prev => prev.map(i =>
+        i.id === id ? {
+          ...i,
+          status: 'done',
+          processingTime: elapsed,
+          result: { chartData: tableData, sku: extractedSku }
+        } : i
+      ));
+
+      // Add to results for review
+      setBatchResults(prev => [...prev, {
+        id,
+        file: item.file,
+        preview: item.preview,
+        chartData: tableData,
+        sku: extractedSku,
+        processingTime: elapsed,
+        status: 'done',
+        approved: false,
+        exportedImage: null
+      }]);
+    } catch (err) {
+      setBatchQueue(prev => prev.map(i =>
+        i.id === id ? { ...i, status: 'error', error: err.message } : i
+      ));
+    }
+  };
+
+  const handleProcessAll = async () => {
+    const pending = batchQueue.filter(i => i.status === 'pending');
+    for (const item of pending) {
+      await handleProcessSingle(item.id);
+    }
+    // Show review after all processed
+    setShowBatchReview(true);
+  };
+
+  const handleApproveResult = (id, approved) => {
+    setBatchResults(prev => prev.map(r =>
+      r.id === id ? { ...r, approved } : r
+    ));
+  };
+
+  const handleApplyPreset = (state) => {
+    setChartStyles(state.chartStyles);
+    setCustomTemplate(state.customTemplate);
+    if (state.brandLogo) {
+      setSelectedBrand(prev => prev ? { ...prev, logo: state.brandLogo } : { id: 'custom', logo: state.brandLogo });
+    }
+    setShowPresetManager(false);
   };
 
   const handleLogoUpload = (logoData) => {
@@ -535,17 +644,57 @@ function App() {
             {/* Upload Tab */}
             {activeTab === 'upload' && (
               <div className="space-y-6">
+                {/* Top Actions */}
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setBatchMode(!batchMode)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${batchMode
+                        ? 'bg-yellow-500 text-black'
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Batch Mode
+                  </button>
+                  <button
+                    onClick={() => setShowPresetManager(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-400 text-xs font-bold rounded-lg hover:bg-white/10 transition-all"
+                  >
+                    <Star className="w-3.5 h-3.5" />
+                    Presets
+                  </button>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Image className="w-4 h-4 text-yellow-500" />
-                      <h3 className="font-bold text-xs uppercase tracking-widest text-gray-400">Source Image</h3>
+                      <h3 className="font-bold text-xs uppercase tracking-widest text-gray-400">
+                        {batchMode ? 'Add Images' : 'Source Image'}
+                      </h3>
                     </div>
                   </div>
-                  <ImageUpload onImageSelect={handleImageSelect} onSKUExtracted={handleSKUExtracted} apiKey={apiKey} />
+                  <ImageUpload
+                    onImageSelect={handleImageSelect}
+                    onBatchAdd={handleBatchAdd}
+                    apiKey={apiKey}
+                    batchMode={batchMode}
+                  />
 
-                  {/* Show uploaded image preview */}
-                  {selectedImage && (
+                  {/* Batch Queue */}
+                  {batchMode && batchQueue.length > 0 && (
+                    <BatchQueue
+                      queue={batchQueue}
+                      onRemove={handleBatchRemove}
+                      onProcess={handleProcessSingle}
+                      onProcessAll={handleProcessAll}
+                      onClear={handleBatchClear}
+                      isProcessing={isProcessing}
+                    />
+                  )}
+
+                  {/* Show uploaded image preview (single mode) */}
+                  {!batchMode && selectedImage && (
                     <div className="mt-4 space-y-2">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Source Preview</p>
                       <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black/20">
@@ -559,7 +708,7 @@ function App() {
                   )}
                 </div>
 
-                {selectedImage && !chartData && !isProcessing && (
+                {!batchMode && selectedImage && !chartData && !isProcessing && (
                   <div className="pt-2">
                     <button
                       onClick={() => processImage(selectedImage)}
@@ -580,6 +729,11 @@ function App() {
                     <div className="text-center space-y-1">
                       <p className="font-bold text-lg text-white">Extracting Data</p>
                       <p className="text-xs text-gray-500 uppercase tracking-widest font-medium">Neural Engine at work</p>
+                      {/* Timer Display */}
+                      <div className="flex items-center justify-center gap-1 text-yellow-500 mt-2">
+                        <Clock className="w-4 h-4" />
+                        <span className="font-mono font-bold text-lg">{processingTime.toFixed(1)}s</span>
+                      </div>
                     </div>
                     <button
                       onClick={() => setIsProcessing(false)}
@@ -592,9 +746,17 @@ function App() {
 
                 {chartData && (
                   <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <Sparkles className="w-4 h-4" />
-                      <span className="text-sm font-medium">Chart Generated!</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-emerald-400">
+                        <Sparkles className="w-4 h-4" />
+                        <span className="text-sm font-medium">Chart Generated!</span>
+                      </div>
+                      {processingTime > 0 && (
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {processingTime.toFixed(1)}s
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Switch to Design tab to customize</p>
                   </div>
@@ -792,6 +954,36 @@ function App() {
           )}
         </main>
       </div>
+
+      {/* Modals */}
+      {showPresetManager && (
+        <PresetManager
+          chartStyles={chartStyles}
+          customTemplate={customTemplate}
+          selectedBrand={selectedBrand}
+          onApplyPreset={handleApplyPreset}
+          onClose={() => setShowPresetManager(false)}
+        />
+      )}
+
+      {showBatchReview && (
+        <BatchReview
+          results={batchResults}
+          onClose={() => setShowBatchReview(false)}
+          onEdit={(id) => {
+            const result = batchResults.find(r => r.id === id);
+            if (result) {
+              setChartData(result.chartData);
+              setSku(result.sku);
+              setShowBatchReview(false);
+            }
+          }}
+          onReprocess={(id) => {
+            handleProcessSingle(id);
+          }}
+          onApprove={handleApproveResult}
+        />
+      )}
     </div >
   );
 }
