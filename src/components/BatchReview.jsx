@@ -117,11 +117,24 @@ export function BatchReview({
                                 {/* Preview Image - show source image or exported */}
                                 <div className="aspect-square relative">
                                     {result.preview ? (
-                                        <img
-                                            src={result.exportedImage || result.preview}
-                                            alt=""
-                                            className="w-full h-full object-cover"
-                                        />
+                                        <>
+                                            {/* Exported Image (default) */}
+                                            <img
+                                                src={result.exportedImage || result.preview}
+                                                alt=""
+                                                className="w-full h-full object-cover group-hover:opacity-0 transition-opacity duration-200"
+                                            />
+                                            {/* Source Image (on hover) */}
+                                            <img
+                                                src={result.preview}
+                                                alt="Source"
+                                                className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                            />
+                                            {/* Source label on hover */}
+                                            <div className="absolute top-2 left-2 px-2 py-1 bg-black/80 text-yellow-500 text-[10px] font-bold uppercase rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Source
+                                            </div>
+                                        </>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center bg-zinc-900">
                                             <AlertCircle className="w-8 h-8 text-red-400" />
@@ -129,7 +142,7 @@ export function BatchReview({
                                     )}
 
                                     {/* Overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
                                     {/* Status Badge */}
                                     <div className="absolute top-2 right-2">

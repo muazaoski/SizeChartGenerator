@@ -11,6 +11,7 @@ import { ColorPresets } from './components/ColorPresets';
 import { PresetManager } from './components/PresetManager';
 import { BatchQueue } from './components/BatchQueue';
 import { BatchReview } from './components/BatchReview';
+import { getPresetById, presetSettingsToState } from './lib/presetStorage';
 import { toJpeg } from 'html-to-image';
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
   const [showPresetManager, setShowPresetManager] = useState(false);
   const [batchResults, setBatchResults] = useState([]);
   const [batchRenderItem, setBatchRenderItem] = useState(null); // Current item being rendered
+  const [batchRenderPreset, setBatchRenderPreset] = useState(null); // Preset to use for current render
   const [isRendering, setIsRendering] = useState(false);
   const processingTimerRef = useRef(null);
   const batchRenderRef = useRef(null); // Ref for hidden render container
@@ -280,7 +282,8 @@ function App() {
         processingTime: elapsed,
         status: 'done',
         approved: false,
-        exportedImage: null
+        exportedImage: null,
+        presetId: item.presetId || null // Store which preset was selected
       };
 
       // Add to results for review
@@ -316,8 +319,18 @@ function App() {
     setIsRendering(true);
 
     for (const result of extractedResults) {
-      // Set current render item
+      // Get preset for this item if one was selected
+      let presetState = null;
+      if (result.presetId) {
+        const preset = getPresetById(result.presetId);
+        if (preset) {
+          presetState = presetSettingsToState(preset.settings);
+        }
+      }
+
+      // Set current render item and its preset
       setBatchRenderItem(result);
+      setBatchRenderPreset(presetState);
 
       // Wait for React to render the ChartPreview
       await new Promise(r => setTimeout(r, 800));
@@ -342,6 +355,7 @@ function App() {
     }
 
     setBatchRenderItem(null);
+    setBatchRenderPreset(null);
     setIsRendering(false);
 
     // Show review after all processed and rendered
@@ -705,19 +719,15 @@ function App() {
               <div className="space-y-6">
                 {/* Top Actions */}
                 <div className="flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => setBatchMode(!batchMode)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${batchMode
-                      ? 'bg-yellow-500 text-black'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                      }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    Batch Mode
-                  </button>
+                  {batchQueue.length > 0 && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 text-black text-xs font-bold rounded-lg">
+                      <Layers className="w-3.5 h-3.5" />
+                      {batchQueue.length} in queue
+                    </div>
+                  )}
                   <button
                     onClick={() => setShowPresetManager(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-400 text-xs font-bold rounded-lg hover:bg-white/10 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-400 text-xs font-bold rounded-lg hover:bg-white/10 transition-all ml-auto"
                   >
                     <Star className="w-3.5 h-3.5" />
                     Presets
@@ -753,8 +763,8 @@ function App() {
                     />
                   )}
 
-                  {/* Show uploaded image preview (single mode) */}
-                  {!batchMode && selectedImage && (
+                  {/* Show uploaded image preview (single mode only) */}
+                  {batchQueue.length === 0 && selectedImage && (
                     <div className="mt-4 space-y-2">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Source Preview</p>
                       <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black/20">
@@ -768,7 +778,7 @@ function App() {
                   )}
                 </div>
 
-                {!batchMode && selectedImage && !chartData && !isProcessing && (
+                {batchQueue.length === 0 && selectedImage && !chartData && !isProcessing && (
                   <div className="pt-2">
                     <button
                       onClick={() => processImage(selectedImage)}
@@ -1059,9 +1069,9 @@ function App() {
           <div ref={batchRenderRef} style={{ width: '1080px', height: '1080px' }}>
             <ChartPreview
               data={batchRenderItem.chartData}
-              brand={selectedBrand}
-              template={customTemplate}
-              styles={chartStyles}
+              brand={batchRenderPreset?.brandLogo ? { id: 'custom', logo: batchRenderPreset.brandLogo } : selectedBrand}
+              template={batchRenderPreset?.customTemplate || customTemplate}
+              styles={batchRenderPreset?.chartStyles || chartStyles}
               sku={batchRenderItem.sku}
               selectedElement={null}
               onSelectElement={() => { }}
