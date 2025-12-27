@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Upload, X, FileImage, ImagePlus, Clipboard, FolderOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -10,6 +10,49 @@ export function ImageUpload({
 }) {
     const [isDragging, setIsDragging] = useState(false);
     const [preview, setPreview] = useState(null);
+
+    // Refs to hold the latest prop values for use in callbacks
+    const onBatchAddRef = useRef(onBatchAdd);
+    const onImageSelectRef = useRef(onImageSelect);
+
+    useEffect(() => {
+        onBatchAddRef.current = onBatchAdd;
+        onImageSelectRef.current = onImageSelect;
+    }, [onBatchAdd, onImageSelect]);
+
+    // Helper to process a file for batch queue
+    const processFileForBatch = useCallback((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (onBatchAddRef.current) {
+                onBatchAddRef.current({
+                    id: crypto.randomUUID(),
+                    file,
+                    preview: reader.result,
+                    status: 'pending',
+                    presetId: null,
+                    result: null,
+                    error: null,
+                    processingTime: 0
+                });
+            }
+        };
+        reader.readAsDataURL(file);
+    }, []);
+
+    // Helper to process a file for single mode
+    const processFileForSingle = useCallback((file) => {
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPreview(reader.result);
+                if (onImageSelectRef.current) {
+                    onImageSelectRef.current(reader.result);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    }, []);
 
     // Paste event handler
     useEffect(() => {
@@ -27,17 +70,17 @@ export function ImageUpload({
 
             if (imageItems.length > 0) {
                 e.preventDefault();
-                if (batchMode || imageItems.length > 1) {
-                    imageItems.forEach(file => handleFileForBatch(file));
+                if (imageItems.length > 1) {
+                    imageItems.forEach(file => processFileForBatch(file));
                 } else {
-                    handleFiles(imageItems[0]);
+                    processFileForSingle(imageItems[0]);
                 }
             }
         };
 
         document.addEventListener('paste', handlePaste);
         return () => document.removeEventListener('paste', handlePaste);
-    }, [batchMode, onBatchAdd, onImageSelect]);
+    }, [processFileForBatch, processFileForSingle]);
 
     const handleDrag = useCallback((e) => {
         e.preventDefault();
@@ -58,58 +101,28 @@ export function ImageUpload({
 
         if (files.length > 1) {
             // Multiple files - add all to batch queue
-            files.forEach(file => handleFileForBatch(file));
+            files.forEach(file => processFileForBatch(file));
         } else if (files.length === 1) {
             // Single file - single mode
-            handleFiles(files[0]);
+            processFileForSingle(files[0]);
         }
-    }, [onBatchAdd, onImageSelect]);
+    }, [processFileForBatch, processFileForSingle]);
 
-    const handleChange = (e) => {
+    const handleChange = useCallback((e) => {
         e.preventDefault();
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
 
         if (files.length > 1) {
             // Multiple files - add all to batch queue
-            files.forEach(file => handleFileForBatch(file));
+            files.forEach(file => processFileForBatch(file));
         } else if (files.length === 1) {
             // Single file - single mode
-            handleFiles(files[0]);
+            processFileForSingle(files[0]);
         }
 
         // Reset input
         e.target.value = '';
-    };
-
-    const handleFileForBatch = async (file) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            if (onBatchAdd) {
-                onBatchAdd({
-                    id: crypto.randomUUID(),
-                    file,
-                    preview: reader.result,
-                    status: 'pending',
-                    presetId: null,
-                    result: null,
-                    error: null,
-                    processingTime: 0
-                });
-            }
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const handleFiles = async (file) => {
-        if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-                setPreview(reader.result);
-                onImageSelect(reader.result);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+    }, [processFileForBatch, processFileForSingle]);
 
     const clearImage = (e) => {
         e.stopPropagation();
@@ -149,7 +162,7 @@ export function ImageUpload({
                         <img
                             src={preview}
                             alt="Preview"
-                            className="max-w-full max-h-[200px] object-contain rounded-lg"
+                            className="max-w-full max-h-[200px] object-contain rounded-lg shadow-2xl"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-end justify-center pb-4 rounded-lg">
                             <div className="flex gap-2">

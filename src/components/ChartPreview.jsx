@@ -157,7 +157,9 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
-    const { colors, font } = brand || { colors: { primary: '#000', secondary: '#fff', accent: '#ccc' }, font: 'sans-serif' };
+    const defaultColors = { primary: '#000', secondary: '#fff', accent: '#ccc' };
+    const colors = brand?.colors || defaultColors;
+    const font = brand?.font || 'sans-serif';
 
     // Default styles if not provided
     const currentStyles = {
