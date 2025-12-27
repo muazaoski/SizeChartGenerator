@@ -193,25 +193,23 @@ function parseAIResponse(aiResult) {
                 // Standard format: measurements = {measurement_name: {S: value, M: value, ...}}
                 console.log("Detected standard format (size-keyed)");
 
-                // Build headers, renaming "SIZE" to "MEASUREMENT" to avoid collision
+                // Build headers - keep EXACT names from AI, only avoid SIZE collision
                 let headers = ["SIZE"];
                 if (measurementKeys.length > 0) {
                     headers = ["SIZE", ...measurementKeys.map(k => {
-                        const headerName = k.replace(/_/g, ' ').toUpperCase();
-                        // Avoid duplicate "SIZE" header - rename to MEASUREMENT
-                        return headerName === "SIZE" ? "MEASUREMENT" : headerName;
+                        // Keep original name, only rename if it would collide with SIZE
+                        return k.toUpperCase() === "SIZE" ? "MEASUREMENT" : k;
                     })];
                 }
                 console.log("Headers:", headers);
 
-                // Build data rows
+                // Build data rows - use exact keys
                 const data = sizes.map(size => {
                     const row = { SIZE: size };
                     measurementKeys.forEach(key => {
                         const measurementData = measurements[key];
-                        let headerName = key.replace(/_/g, ' ').toUpperCase();
-                        // Match the header rename
-                        if (headerName === "SIZE") headerName = "MEASUREMENT";
+                        // Use exact key, only rename SIZE collision
+                        const headerName = key.toUpperCase() === "SIZE" ? "MEASUREMENT" : key;
                         if (measurementData && typeof measurementData === 'object') {
                             row[headerName] = measurementData[size] || "";
                         }
