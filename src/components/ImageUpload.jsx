@@ -136,7 +136,7 @@ export function ImageUpload({
                     type="file"
                     className="hidden"
                     accept="image/*"
-                    multiple={batchMode}
+                    multiple
                     onChange={handleChange}
                 />
 
@@ -173,7 +173,7 @@ export function ImageUpload({
                         </div>
                         <div className="space-y-1">
                             <h3 className="text-base font-bold text-white uppercase tracking-wider">
-                                {batchMode ? 'Add Images' : 'Deploy Artifact'}
+                                Drop Images
                             </h3>
                             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">
                                 Drag & Drop or Click to Select
@@ -188,12 +188,10 @@ export function ImageUpload({
                                 <Clipboard className="w-3 h-3" />
                                 Ctrl+V to paste
                             </span>
-                            {batchMode && (
-                                <span className="flex items-center gap-1">
-                                    <FolderOpen className="w-3 h-3" />
-                                    Multi-select
-                                </span>
-                            )}
+                            <span className="flex items-center gap-1">
+                                <FolderOpen className="w-3 h-3" />
+                                Multi-select
+                            </span>
                         </div>
                     </div>
                 )}
