@@ -751,7 +751,7 @@ function App() {
                   />
 
                   {/* Batch Queue */}
-                  {batchMode && batchQueue.length > 0 && (
+                  {batchQueue.length > 0 && (
                     <BatchQueue
                       queue={batchQueue}
                       onRemove={handleBatchRemove}

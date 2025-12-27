@@ -56,20 +56,24 @@ export function ImageUpload({
 
         const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
 
-        if (files.length > 1 || batchMode) {
+        if (files.length > 1) {
+            // Multiple files - add all to batch queue
             files.forEach(file => handleFileForBatch(file));
         } else if (files.length === 1) {
+            // Single file - single mode
             handleFiles(files[0]);
         }
-    }, [batchMode, onBatchAdd, onImageSelect]);
+    }, [onBatchAdd, onImageSelect]);
 
     const handleChange = (e) => {
         e.preventDefault();
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
 
-        if (files.length > 1 || batchMode) {
+        if (files.length > 1) {
+            // Multiple files - add all to batch queue
             files.forEach(file => handleFileForBatch(file));
         } else if (files.length === 1) {
+            // Single file - single mode
             handleFiles(files[0]);
         }
 
