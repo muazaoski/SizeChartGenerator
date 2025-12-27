@@ -249,7 +249,7 @@ function App() {
 
   const handleProcessSingle = async (id) => {
     const item = batchQueue.find(i => i.id === id);
-    if (!item) return;
+    if (!item) return null;
 
     // Update status
     setBatchQueue(prev => prev.map(i =>
@@ -270,8 +270,8 @@ function App() {
         } : i
       ));
 
-      // Add to results for review
-      setBatchResults(prev => [...prev, {
+      // Create result object
+      const result = {
         id,
         file: item.file,
         preview: item.preview,
@@ -281,37 +281,46 @@ function App() {
         status: 'done',
         approved: false,
         exportedImage: null
-      }]);
+      };
+
+      // Add to results for review
+      setBatchResults(prev => [...prev, result]);
+
+      return result; // Return for batch processing
     } catch (err) {
       setBatchQueue(prev => prev.map(i =>
         i.id === id ? { ...i, status: 'error', error: err.message } : i
       ));
+      return null;
     }
   };
 
   const handleProcessAll = async () => {
     const pending = batchQueue.filter(i => i.status === 'pending');
 
-    // Step 1: Extract data from all images
+    // Step 1: Extract data from all images and collect results
+    const extractedResults = [];
     for (const item of pending) {
-      await handleProcessSingle(item.id);
+      const result = await handleProcessSingle(item.id);
+      if (result) {
+        extractedResults.push(result);
+      }
+    }
+
+    if (extractedResults.length === 0) {
+      setShowBatchReview(true);
+      return;
     }
 
     // Step 2: Render all charts and capture images
     setIsRendering(true);
 
-    // Wait a tick for batchResults to update
-    await new Promise(r => setTimeout(r, 100));
-
-    // We'll render charts sequentially
-    const resultsToRender = [...batchResults.filter(r => r.status === 'done' && !r.exportedImage)];
-
-    for (const result of resultsToRender) {
+    for (const result of extractedResults) {
       // Set current render item
       setBatchRenderItem(result);
 
-      // Wait for render
-      await new Promise(r => setTimeout(r, 500));
+      // Wait for React to render the ChartPreview
+      await new Promise(r => setTimeout(r, 800));
 
       // Capture the rendered chart
       if (batchRenderRef.current) {
