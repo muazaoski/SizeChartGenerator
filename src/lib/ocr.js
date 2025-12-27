@@ -117,52 +117,99 @@ function parseAIResponse(aiResult) {
 
     // Try to extract JSON from the AI response
     try {
-        // AI might return JSON directly or embedded in text
-        let jsonData = null;
+        let jsonString = aiResult;
 
-        // Check if result is already an object
-        if (typeof aiResult === 'object') {
-            jsonData = aiResult;
-        } else {
-            // Try to find JSON in the text response
-            const jsonMatch = aiResult.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                jsonData = JSON.parse(jsonMatch[0]);
-            }
+        // Remove markdown code blocks if present
+        if (typeof aiResult === 'string') {
+            jsonString = aiResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         }
 
-        if (jsonData) {
-            // Extract structured data from AI response
-            const sizes = jsonData.sizes || [];
-            const measurements = jsonData.measurements || {};
+        // Try to find and parse JSON
+        const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const jsonData = JSON.parse(jsonMatch[0]);
 
-            // Build headers from measurement keys
-            const measurementKeys = Object.keys(measurements);
-            let headers = ["SIZE"];
-            if (measurementKeys.length > 0) {
-                headers = ["SIZE", ...measurementKeys.map(k => k.toUpperCase())];
-            }
+            // Check for the expected format: sizes array + measurements object
+            if (jsonData.sizes && Array.isArray(jsonData.sizes)) {
+                const sizes = jsonData.sizes;
+                const measurements = jsonData.measurements || {};
 
-            // Build data rows
-            const data = sizes.map(size => {
-                const row = { SIZE: size };
-                measurementKeys.forEach(key => {
-                    const measurementData = measurements[key];
-                    if (measurementData && typeof measurementData === 'object') {
-                        row[key.toUpperCase()] = measurementData[size] || "";
-                    }
-                });
-                return row;
-            });
+                // Get unique measurement types by checking the keys in measurements
+                // The AI might return {"chest_width": {"size": "S", "value": "38\""}, ...}
+                // We need to extract measurement names and pivot the data
 
-            return {
-                sku: jsonData.sku || "",
-                notes: jsonData.notes || null,
-                tableData: {
-                    headers: headers,
-                    data: data.length > 0 ? data : [{ "SIZE": "-", "UKURAN": "-" }]
+                const measurementKeys = Object.keys(measurements);
+
+                // Check if measurements have the format: {measurement_name: {size: S, value: X}}
+                // This is the alt format where each key-value pair is one data point
+                const firstMeasurement = measurements[measurementKeys[0]];
+
+                if (firstMeasurement && typeof firstMeasurement === 'object' && 'value' in firstMeasurement) {
+                    // Alternative format: each measurement key has {size, value, unit}
+                    // Need to pivot this into a table format
+                    const uniqueMeasurementTypes = [...new Set(measurementKeys.map(k => k.replace(/_/g, ' ').toUpperCase()))];
+                    const headers = ["SIZE", ...uniqueMeasurementTypes];
+
+                    // Build rows by size
+                    const dataMap = {};
+                    sizes.forEach(size => {
+                        dataMap[size] = { SIZE: size };
+                        uniqueMeasurementTypes.forEach(mt => {
+                            dataMap[size][mt] = "";
+                        });
+                    });
+
+                    // Fill in the values
+                    measurementKeys.forEach(key => {
+                        const measurement = measurements[key];
+                        if (measurement && measurement.size && measurement.value) {
+                            const measurementType = key.replace(/_/g, ' ').toUpperCase();
+                            if (dataMap[measurement.size]) {
+                                dataMap[measurement.size][measurementType] = measurement.value;
+                            }
+                        }
+                    });
+
+                    const data = sizes.map(size => dataMap[size]);
+
+                    return {
+                        sku: jsonData.sku || "",
+                        notes: jsonData.notes || null,
+                        tableData: {
+                            headers: headers,
+                            data: data.length > 0 ? data : [{ "SIZE": "-", "UKURAN": "-" }]
+                        }
+                    };
                 }
-            };
+
+                // Standard format: measurements = {measurement_name: {S: value, M: value, ...}}
+                let headers = ["SIZE"];
+                if (measurementKeys.length > 0) {
+                    headers = ["SIZE", ...measurementKeys.map(k => k.replace(/_/g, ' ').toUpperCase())];
+                }
+
+                // Build data rows
+                const data = sizes.map(size => {
+                    const row = { SIZE: size };
+                    measurementKeys.forEach(key => {
+                        const measurementData = measurements[key];
+                        const headerName = key.replace(/_/g, ' ').toUpperCase();
+                        if (measurementData && typeof measurementData === 'object') {
+                            row[headerName] = measurementData[size] || "";
+                        }
+                    });
+                    return row;
+                });
+
+                return {
+                    sku: jsonData.sku || "",
+                    notes: jsonData.notes || null,
+                    tableData: {
+                        headers: headers,
+                        data: data.length > 0 ? data : [{ "SIZE": "-", "UKURAN": "-" }]
+                    }
+                };
+            }
         }
     } catch (parseError) {
         console.log("JSON parsing failed, trying text extraction:", parseError);
