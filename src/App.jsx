@@ -37,7 +37,10 @@ function App() {
   const [showBatchReview, setShowBatchReview] = useState(false);
   const [showPresetManager, setShowPresetManager] = useState(false);
   const [batchResults, setBatchResults] = useState([]);
+  const [batchRenderItem, setBatchRenderItem] = useState(null); // Current item being rendered
+  const [isRendering, setIsRendering] = useState(false);
   const processingTimerRef = useRef(null);
+  const batchRenderRef = useRef(null); // Ref for hidden render container
   const [chartStyles, setChartStyles] = useState({
     scale: 1,
     x: 0,
@@ -288,10 +291,51 @@ function App() {
 
   const handleProcessAll = async () => {
     const pending = batchQueue.filter(i => i.status === 'pending');
+
+    // Step 1: Extract data from all images
     for (const item of pending) {
       await handleProcessSingle(item.id);
     }
-    // Show review after all processed
+
+    // Step 2: Render all charts and capture images
+    setIsRendering(true);
+
+    // Wait a tick for batchResults to update
+    await new Promise(r => setTimeout(r, 100));
+
+    // We'll render charts sequentially
+    const resultsToRender = [...batchResults.filter(r => r.status === 'done' && !r.exportedImage)];
+
+    for (const result of resultsToRender) {
+      // Set current render item
+      setBatchRenderItem(result);
+
+      // Wait for render
+      await new Promise(r => setTimeout(r, 500));
+
+      // Capture the rendered chart
+      if (batchRenderRef.current) {
+        try {
+          const dataUrl = await toJpeg(batchRenderRef.current, {
+            quality: 0.95,
+            backgroundColor: '#ffffff',
+            pixelRatio: 2
+          });
+
+          // Update result with exported image
+          setBatchResults(prev => prev.map(r =>
+            r.id === result.id ? { ...r, exportedImage: dataUrl } : r
+          ));
+        } catch (err) {
+          console.error('Failed to render chart:', result.id, err);
+        }
+      }
+    }
+
+    setBatchRenderItem(null);
+    setIsRendering(false);
+
+    // Show review after all processed and rendered
     setShowBatchReview(true);
   };
 
@@ -990,6 +1034,43 @@ function App() {
           }}
           onApprove={handleApproveResult}
         />
+      )}
+
+      {/* Hidden Batch Render Container */}
+      {batchRenderItem && (
+        <div
+          style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: 0,
+            width: '1080px',
+            height: '1080px'
+          }}
+        >
+          <div ref={batchRenderRef} style={{ width: '1080px', height: '1080px' }}>
+            <ChartPreview
+              data={batchRenderItem.chartData}
+              brand={selectedBrand}
+              template={customTemplate}
+              styles={chartStyles}
+              sku={batchRenderItem.sku}
+              selectedElement={null}
+              onSelectElement={() => { }}
+              onPositionChange={() => { }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Batch Rendering Indicator */}
+      {isRendering && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-yellow-500 animate-spin mx-auto mb-4" />
+            <p className="text-white font-bold">Rendering Charts...</p>
+            <p className="text-gray-500 text-sm mt-1">Please wait</p>
+          </div>
+        </div>
       )}
     </div >
   );

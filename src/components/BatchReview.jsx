@@ -23,15 +23,23 @@ export function BatchReview({
     const handleExportAll = async () => {
         setIsExporting(true);
         try {
-            const approved = results.filter(r => r.approved && r.exportedImage);
+            const approved = results.filter(r => r.approved);
             if (approved.length === 0) {
                 alert('No approved items to export');
+                setIsExporting(false);
+                return;
+            }
+
+            const withImages = approved.filter(r => r.exportedImage);
+            if (withImages.length === 0) {
+                alert('Charts have not been rendered yet.\n\nTo export, click "Edit Data" for each item to open it in the editor, then export from there.\n\nBatch rendering coming soon!');
+                setIsExporting(false);
                 return;
             }
 
             const zip = new JSZip();
 
-            approved.forEach((item, index) => {
+            withImages.forEach((item, index) => {
                 // Convert base64 to blob
                 const base64Data = item.exportedImage.split(',')[1];
                 const binaryData = atob(base64Data);
@@ -106,11 +114,11 @@ export function BatchReview({
                                 className={`group relative bg-zinc-800 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${result.approved ? 'border-green-500' : 'border-white/10 hover:border-white/30'
                                     } ${selectedId === result.id ? 'ring-2 ring-yellow-500' : ''}`}
                             >
-                                {/* Preview Image */}
+                                {/* Preview Image - show source image or exported */}
                                 <div className="aspect-square relative">
-                                    {result.exportedImage ? (
+                                    {result.preview ? (
                                         <img
-                                            src={result.exportedImage}
+                                            src={result.exportedImage || result.preview}
                                             alt=""
                                             className="w-full h-full object-cover"
                                         />
@@ -142,8 +150,8 @@ export function BatchReview({
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onApprove(result.id, !result.approved); }}
                                                 className={`flex-1 py-1 text-xs font-medium rounded ${result.approved
-                                                        ? 'bg-red-500/80 text-white hover:bg-red-500'
-                                                        : 'bg-green-500/80 text-white hover:bg-green-500'
+                                                    ? 'bg-red-500/80 text-white hover:bg-red-500'
+                                                    : 'bg-green-500/80 text-white hover:bg-green-500'
                                                     } transition-colors`}
                                             >
                                                 {result.approved ? 'Unapprove' : 'Approve'}
@@ -172,14 +180,19 @@ export function BatchReview({
                     <div className="w-96 border-l border-white/10 bg-zinc-900 p-4 overflow-y-auto">
                         <h3 className="text-sm font-bold text-white mb-3">Preview</h3>
 
-                        {/* Large Preview */}
-                        {selectedResult.exportedImage && (
+                        {/* Large Preview - show source */}
+                        {(selectedResult.exportedImage || selectedResult.preview) && (
                             <div className="rounded-lg overflow-hidden border border-white/10 mb-4">
                                 <img
-                                    src={selectedResult.exportedImage}
+                                    src={selectedResult.exportedImage || selectedResult.preview}
                                     alt=""
                                     className="w-full"
                                 />
+                                {!selectedResult.exportedImage && (
+                                    <p className="text-xs text-yellow-500 p-2 bg-yellow-500/10 text-center">
+                                        Source image - chart not rendered yet
+                                    </p>
+                                )}
                             </div>
                         )}
 
@@ -224,8 +237,8 @@ export function BatchReview({
                             <button
                                 onClick={() => onApprove(selectedResult.id, !selectedResult.approved)}
                                 className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-bold rounded-lg transition-colors ${selectedResult.approved
-                                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                                        : 'bg-green-500 text-white hover:bg-green-400'
+                                    ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                                    : 'bg-green-500 text-white hover:bg-green-400'
                                     }`}
                             >
                                 {selectedResult.approved ? (
