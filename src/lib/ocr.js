@@ -110,6 +110,7 @@ async function fallbackToBasicOCR(blob, apiKey) {
  */
 function parseAIResponse(aiResult) {
     if (!aiResult) {
+        console.log("No AI result, returning default");
         return { sku: null, notes: null, tableData: { headers: ["SIZE", "UKURAN"], data: [] } };
     }
 
@@ -124,33 +125,35 @@ function parseAIResponse(aiResult) {
             jsonString = aiResult.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         }
 
+        console.log("Cleaned JSON string:", jsonString);
+
         // Try to find and parse JSON
         const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             const jsonData = JSON.parse(jsonMatch[0]);
+            console.log("Parsed JSON data:", jsonData);
 
             // Check for the expected format: sizes array + measurements object
             if (jsonData.sizes && Array.isArray(jsonData.sizes)) {
                 const sizes = jsonData.sizes;
                 const measurements = jsonData.measurements || {};
 
-                // Get unique measurement types by checking the keys in measurements
-                // The AI might return {"chest_width": {"size": "S", "value": "38\""}, ...}
-                // We need to extract measurement names and pivot the data
+                console.log("Sizes:", sizes);
+                console.log("Measurements:", measurements);
 
                 const measurementKeys = Object.keys(measurements);
+                console.log("Measurement keys:", measurementKeys);
 
                 // Check if measurements have the format: {measurement_name: {size: S, value: X}}
-                // This is the alt format where each key-value pair is one data point
                 const firstMeasurement = measurements[measurementKeys[0]];
+                console.log("First measurement:", firstMeasurement);
 
                 if (firstMeasurement && typeof firstMeasurement === 'object' && 'value' in firstMeasurement) {
                     // Alternative format: each measurement key has {size, value, unit}
-                    // Need to pivot this into a table format
+                    console.log("Detected alternative format (value-based)");
                     const uniqueMeasurementTypes = [...new Set(measurementKeys.map(k => k.replace(/_/g, ' ').toUpperCase()))];
                     const headers = ["SIZE", ...uniqueMeasurementTypes];
 
-                    // Build rows by size
                     const dataMap = {};
                     sizes.forEach(size => {
                         dataMap[size] = { SIZE: size };
@@ -159,7 +162,6 @@ function parseAIResponse(aiResult) {
                         });
                     });
 
-                    // Fill in the values
                     measurementKeys.forEach(key => {
                         const measurement = measurements[key];
                         if (measurement && measurement.size && measurement.value) {
@@ -171,6 +173,7 @@ function parseAIResponse(aiResult) {
                     });
 
                     const data = sizes.map(size => dataMap[size]);
+                    console.log("Result (alt format):", { headers, data });
 
                     return {
                         sku: jsonData.sku || "",
@@ -183,10 +186,12 @@ function parseAIResponse(aiResult) {
                 }
 
                 // Standard format: measurements = {measurement_name: {S: value, M: value, ...}}
+                console.log("Detected standard format (size-keyed)");
                 let headers = ["SIZE"];
                 if (measurementKeys.length > 0) {
                     headers = ["SIZE", ...measurementKeys.map(k => k.replace(/_/g, ' ').toUpperCase())];
                 }
+                console.log("Headers:", headers);
 
                 // Build data rows
                 const data = sizes.map(size => {
@@ -200,8 +205,9 @@ function parseAIResponse(aiResult) {
                     });
                     return row;
                 });
+                console.log("Data rows:", data);
 
-                return {
+                const result = {
                     sku: jsonData.sku || "",
                     notes: jsonData.notes || null,
                     tableData: {
@@ -209,6 +215,8 @@ function parseAIResponse(aiResult) {
                         data: data.length > 0 ? data : [{ "SIZE": "-", "UKURAN": "-" }]
                     }
                 };
+                console.log("Final result:", result);
+                return result;
             }
         }
     } catch (parseError) {
@@ -216,6 +224,7 @@ function parseAIResponse(aiResult) {
     }
 
     // Fallback: Parse as text if JSON extraction fails
+    console.log("Falling back to text parsing");
     return parseTextResponse(aiResult);
 }
 
