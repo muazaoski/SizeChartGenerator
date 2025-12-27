@@ -301,6 +301,12 @@ function App() {
     ));
   };
 
+  const handleUpdateBatchPreset = (id, presetId) => {
+    setBatchQueue(prev => prev.map(item =>
+      item.id === id ? { ...item, presetId } : item
+    ));
+  };
+
   const handleApplyPreset = (state) => {
     setChartStyles(state.chartStyles);
     setCustomTemplate(state.customTemplate);
@@ -649,8 +655,8 @@ function App() {
                   <button
                     onClick={() => setBatchMode(!batchMode)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${batchMode
-                        ? 'bg-yellow-500 text-black'
-                        : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      ? 'bg-yellow-500 text-black'
+                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
                       }`}
                   >
                     <Layers className="w-3.5 h-3.5" />
@@ -689,6 +695,7 @@ function App() {
                       onProcess={handleProcessSingle}
                       onProcessAll={handleProcessAll}
                       onClear={handleBatchClear}
+                      onUpdatePreset={handleUpdateBatchPreset}
                       isProcessing={isProcessing}
                     />
                   )}

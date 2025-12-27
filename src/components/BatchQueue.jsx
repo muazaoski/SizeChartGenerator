@@ -1,9 +1,10 @@
-import React from 'react';
-import { X, Check, AlertCircle, Loader2, Play, Trash2, Image, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check, AlertCircle, Loader2, Play, Trash2, Image, Clock, Star, ChevronDown } from 'lucide-react';
+import { getPresets } from '../lib/presetStorage';
 
 /**
  * Batch Queue Component
- * Shows all queued images with their processing status
+ * Shows all queued images with their processing status and preset selectors
  */
 export function BatchQueue({
     queue,
@@ -11,12 +12,30 @@ export function BatchQueue({
     onProcess,
     onProcessAll,
     onClear,
+    onUpdatePreset,
     isProcessing,
     currentIndex
 }) {
+    const [presets, setPresets] = useState([]);
+    const [globalPreset, setGlobalPreset] = useState('');
+
+    useEffect(() => {
+        setPresets(getPresets());
+    }, []);
+
     const pendingCount = queue.filter(item => item.status === 'pending').length;
     const doneCount = queue.filter(item => item.status === 'done').length;
     const errorCount = queue.filter(item => item.status === 'error').length;
+
+    const handleGlobalPresetChange = (presetId) => {
+        setGlobalPreset(presetId);
+        // Apply to all pending items
+        queue.forEach(item => {
+            if (item.status === 'pending' && onUpdatePreset) {
+                onUpdatePreset(item.id, presetId);
+            }
+        });
+    };
 
     if (queue.length === 0) return null;
 
@@ -64,6 +83,24 @@ export function BatchQueue({
                 </div>
             </div>
 
+            {/* Global Preset Selector */}
+            {presets.length > 0 && pendingCount > 0 && (
+                <div className="px-3 py-2 border-b border-white/5 bg-yellow-500/5 flex items-center gap-2">
+                    <Star className="w-3.5 h-3.5 text-yellow-500" />
+                    <span className="text-xs text-yellow-500 font-medium">Apply to all:</span>
+                    <select
+                        value={globalPreset}
+                        onChange={(e) => handleGlobalPresetChange(e.target.value)}
+                        className="flex-1 px-2 py-1 bg-black/30 border border-white/10 rounded text-xs text-white focus:outline-none focus:border-yellow-500"
+                    >
+                        <option value="">No preset (use current)</option>
+                        {presets.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
             {/* Progress bar */}
             {isProcessing && (
                 <div className="h-1 bg-black">
@@ -75,22 +112,22 @@ export function BatchQueue({
             )}
 
             {/* Queue items */}
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-64 overflow-y-auto divide-y divide-white/5">
                 {queue.map((item, index) => (
                     <div
                         key={item.id}
-                        className={`flex items-center gap-3 p-2 border-b border-white/5 last:border-0 ${item.status === 'processing' ? 'bg-yellow-500/10' :
+                        className={`flex items-center gap-3 p-2 ${item.status === 'processing' ? 'bg-yellow-500/10' :
                                 item.status === 'done' ? 'bg-green-500/5' :
                                     item.status === 'error' ? 'bg-red-500/5' : ''
                             }`}
                     >
                         {/* Thumbnail */}
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/30 flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-black/30 flex-shrink-0">
                             {item.preview ? (
                                 <img src={item.preview} alt="" className="w-full h-full object-cover" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                    <Image className="w-4 h-4 text-gray-600" />
+                                    <Image className="w-5 h-5 text-gray-600" />
                                 </div>
                             )}
                         </div>
@@ -125,24 +162,39 @@ export function BatchQueue({
                             </p>
                         </div>
 
+                        {/* Preset Selector (only for pending) */}
+                        {item.status === 'pending' && presets.length > 0 && (
+                            <select
+                                value={item.presetId || ''}
+                                onChange={(e) => onUpdatePreset && onUpdatePreset(item.id, e.target.value)}
+                                className="px-2 py-1 bg-black/30 border border-white/10 rounded text-[10px] text-gray-400 focus:outline-none focus:border-yellow-500 max-w-[100px]"
+                                title="Select preset"
+                            >
+                                <option value="">Default</option>
+                                {presets.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                            </select>
+                        )}
+
                         {/* Actions */}
                         <div className="flex items-center gap-1">
                             {item.status === 'pending' && !isProcessing && (
                                 <button
                                     onClick={() => onProcess(item.id)}
-                                    className="p-1 bg-yellow-500/20 text-yellow-500 rounded hover:bg-yellow-500/30 transition-colors"
+                                    className="p-1.5 bg-yellow-500/20 text-yellow-500 rounded hover:bg-yellow-500/30 transition-colors"
                                     title="Process this"
                                 >
-                                    <Play className="w-3 h-3" />
+                                    <Play className="w-3.5 h-3.5" />
                                 </button>
                             )}
                             {item.status !== 'processing' && (
                                 <button
                                     onClick={() => onRemove(item.id)}
-                                    className="p-1 bg-white/5 text-gray-500 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                    className="p-1.5 bg-white/5 text-gray-500 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"
                                     title="Remove"
                                 >
-                                    <X className="w-3 h-3" />
+                                    <X className="w-3.5 h-3.5" />
                                 </button>
                             )}
                         </div>
