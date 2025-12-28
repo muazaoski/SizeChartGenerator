@@ -557,9 +557,12 @@ function App() {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4 group cursor-default">
             <img src="/logo.svg" className="w-10 h-10 object-contain group-hover:scale-110 transition-all duration-500" alt="Favicon" />
-            <h1 className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">
-              SIZE CHART <span className="text-yellow-500">PRO</span>
-            </h1>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">
+                SizeChart<span className="text-yellow-500">PLS</span>
+              </h1>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Size chart generator</p>
+            </div>
           </div>
         </div>
 
@@ -604,7 +607,7 @@ function App() {
             <div className="relative space-y-6">
               <img src="/logo.svg" className="w-16 h-16 mx-auto object-contain" alt="Logo" />
               <div className="space-y-2">
-                <h3 className="font-bold text-3xl text-white">Size Chart Gen</h3>
+                <h3 className="font-bold text-3xl text-white">SizeChartPLS</h3>
                 <p className="text-yellow-500 font-bold uppercase tracking-[0.2em] text-xs">V.2.0 Black Edition</p>
               </div>
               <p className="text-gray-400 leading-relaxed text-sm">
