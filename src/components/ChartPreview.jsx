@@ -173,6 +173,65 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
         ...styles
     };
 
+    // Auto-scale calculation based on content dimensions
+    const calculateAutoScale = useCallback(() => {
+        if (!localData || !localData.data) return 1;
+
+        const CONTAINER_SIZE = 1080;
+        const PADDING = hasTemplate ? 40 : 128; // p-16 = 64px * 2, templates usually need some buffer
+
+        // Height estimation
+        const LOGO_HEIGHT = brand?.logo ? 160 : 0;
+        const TITLE_HEIGHT = currentStyles.title ? 100 : 0;
+        const HEADER_HEIGHT = 80;
+        const ROW_HEIGHT = 65; // py-5 is 20px * 2 + text
+        const NOTE_HEIGHT = localNotes.items.length * 25 + 60; // Estimate note height
+        const SPACING = 40; // Spacing between elements
+
+        const rowCount = localData.data.length;
+        const estimatedHeight =
+            PADDING +
+            LOGO_HEIGHT +
+            TITLE_HEIGHT +
+            HEADER_HEIGHT +
+            (ROW_HEIGHT * rowCount) +
+            NOTE_HEIGHT +
+            (SPACING * 4);
+
+        // Width estimation
+        const columnCount = localData.headers.length;
+        const estimatedWidth = columnCount * 220 + PADDING; // ~220px per column
+
+        const hScale = CONTAINER_SIZE / estimatedHeight;
+        const wScale = CONTAINER_SIZE / estimatedWidth;
+
+        const bestScale = Math.min(hScale, wScale);
+
+        if (bestScale < 0.98) {
+            // Clamp between 0.35 and 1.0
+            return Math.max(0.35, Math.min(1.0, bestScale));
+        }
+
+        return 1;
+    }, [localData, hasTemplate, brand?.logo, currentStyles.title, localNotes.items.length]);
+
+    // Calculate auto-scale for the content wrapper
+    const autoScale = calculateAutoScale();
+
+    // Apply auto-scale to table if no manual scale has been set
+    const getElementScale = useCallback((elementType) => {
+        const elementStyles = currentStyles[elementType] || {};
+        // If user has manually set a scale, use it; otherwise use auto-scale for table
+        if (elementStyles.scale !== undefined && elementStyles.scale !== 1) {
+            return elementStyles.scale;
+        }
+        // Apply auto-scale to all elements when content overflows
+        if (autoScale < 1 && elementType === 'table') {
+            return autoScale;
+        }
+        return elementStyles.scale || 1;
+    }, [currentStyles, autoScale]);
+
     const containerStyle = hasTemplate ? {
         fontFamily: "'Gotham Narrow', sans-serif",
         backgroundImage: `url(${template})`,
@@ -495,7 +554,9 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
         const y = elementStyles.y || 0;
 
         // Inverse scale for handles and outlines to keep them consistent
-        const inverseScale = 1 / scale;
+        // We also account for the container's autoScale to keep handles readable
+        const combinedScale = scale * (autoScale || 1);
+        const inverseScale = 1 / combinedScale;
         const handleSize = 10 * inverseScale;
         const handleOffset = -5 * inverseScale;
         const outlineWidth = 2 * inverseScale;
@@ -669,11 +730,22 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                         />
                     )}
 
-                    {/* Content Container */}
-                    <div className={cn(
-                        "flex flex-col items-center origin-center gpu-accelerated",
-                        hasTemplate ? "absolute" : "w-full p-16"
-                    )}>
+                    {/* Content Container - with auto-scale for overflow prevention */}
+                    <div
+                        className={cn(
+                            "flex flex-col items-center gpu-accelerated",
+                            hasTemplate ? "absolute" : "w-full p-16"
+                        )}
+                        style={{
+                            top: hasTemplate ? '50%' : undefined,
+                            left: hasTemplate ? '50%' : undefined,
+                            transform: `
+                                ${hasTemplate ? 'translate(-50%, -50%)' : ''} 
+                                ${autoScale < 1 ? `scale(${autoScale})` : ''}
+                            `.trim() || undefined,
+                            transformOrigin: 'center center'
+                        }}
+                    >
 
                         {/* Brand Logo */}
                         {brand && brand.logo && (
