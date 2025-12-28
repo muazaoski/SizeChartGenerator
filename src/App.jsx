@@ -301,14 +301,10 @@ function App() {
   const handleProcessAll = async () => {
     const pending = batchQueue.filter(i => i.status === 'pending');
 
-    // Step 1: Extract data from all images and collect results
-    const extractedResults = [];
-    for (const item of pending) {
-      const result = await handleProcessSingle(item.id);
-      if (result) {
-        extractedResults.push(result);
-      }
-    }
+    // Step 1: Extract data from all images IN PARALLEL
+    const extractPromises = pending.map(item => handleProcessSingle(item.id));
+    const results = await Promise.all(extractPromises);
+    const extractedResults = results.filter(r => r !== null);
 
     if (extractedResults.length === 0) {
       setShowBatchReview(true);
