@@ -714,16 +714,10 @@ function App() {
             {activeTab === 'upload' && (
               <div className="space-y-6">
                 {/* Top Actions */}
-                <div className="flex items-center justify-between gap-2">
-                  {batchQueue.length > 0 && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 text-black text-xs font-bold rounded-lg">
-                      <Layers className="w-3.5 h-3.5" />
-                      {batchQueue.length} in queue
-                    </div>
-                  )}
+                <div className="flex items-center justify-end gap-2">
                   <button
                     onClick={() => setShowPresetManager(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-400 text-xs font-bold rounded-lg hover:bg-white/10 transition-all ml-auto"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-400 text-xs font-bold rounded-lg hover:bg-white/10 transition-all"
                   >
                     <Star className="w-3.5 h-3.5" />
                     Presets
