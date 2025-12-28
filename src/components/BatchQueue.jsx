@@ -39,6 +39,16 @@ export function BatchQueue({
 
     if (queue.length === 0) return null;
 
+    // Common select styles for dark theme
+    const selectClass = `
+        appearance-none cursor-pointer
+        px-3 py-1.5 pr-8
+        bg-zinc-900 border border-white/10 rounded-lg
+        text-xs text-white font-medium
+        focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30
+        hover:border-white/20 transition-colors
+    `;
+
     return (
         <div className="bg-white/[0.02] border border-white/10 rounded-xl overflow-hidden">
             {/* Header */}
@@ -86,18 +96,22 @@ export function BatchQueue({
             {/* Global Preset Selector */}
             {presets.length > 0 && pendingCount > 0 && (
                 <div className="px-3 py-2 border-b border-white/5 bg-yellow-500/5 flex items-center gap-2">
-                    <Star className="w-3.5 h-3.5 text-yellow-500" />
-                    <span className="text-xs text-yellow-500 font-medium">Apply to all:</span>
-                    <select
-                        value={globalPreset}
-                        onChange={(e) => handleGlobalPresetChange(e.target.value)}
-                        className="flex-1 px-2 py-1 bg-black/30 border border-white/10 rounded text-xs text-white focus:outline-none focus:border-yellow-500"
-                    >
-                        <option value="">No preset (use current)</option>
-                        {presets.map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                    </select>
+                    <Star className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" />
+                    <span className="text-xs text-yellow-500 font-medium whitespace-nowrap">Apply to all:</span>
+                    <div className="relative flex-1">
+                        <select
+                            value={globalPreset}
+                            onChange={(e) => handleGlobalPresetChange(e.target.value)}
+                            className={selectClass}
+                            style={{ width: '100%' }}
+                        >
+                            <option value="">No preset (use current)</option>
+                            {presets.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                    </div>
                 </div>
             )}
 
@@ -117,8 +131,8 @@ export function BatchQueue({
                     <div
                         key={item.id}
                         className={`flex items-center gap-3 p-2 ${item.status === 'processing' ? 'bg-yellow-500/10' :
-                                item.status === 'done' ? 'bg-green-500/5' :
-                                    item.status === 'error' ? 'bg-red-500/5' : ''
+                            item.status === 'done' ? 'bg-green-500/5' :
+                                item.status === 'error' ? 'bg-red-500/5' : ''
                             }`}
                     >
                         {/* Thumbnail */}
@@ -164,17 +178,20 @@ export function BatchQueue({
 
                         {/* Preset Selector (only for pending) */}
                         {item.status === 'pending' && presets.length > 0 && (
-                            <select
-                                value={item.presetId || ''}
-                                onChange={(e) => onUpdatePreset && onUpdatePreset(item.id, e.target.value)}
-                                className="px-2 py-1 bg-black/30 border border-white/10 rounded text-[10px] text-gray-400 focus:outline-none focus:border-yellow-500 max-w-[100px]"
-                                title="Select preset"
-                            >
-                                <option value="">Default</option>
-                                {presets.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
+                            <div className="relative">
+                                <select
+                                    value={item.presetId || ''}
+                                    onChange={(e) => onUpdatePreset && onUpdatePreset(item.id, e.target.value)}
+                                    className="appearance-none cursor-pointer px-2 py-1 pr-6 bg-zinc-900 border border-white/10 rounded text-[10px] text-gray-300 focus:outline-none focus:border-yellow-500 max-w-[90px] hover:border-white/20 transition-colors"
+                                    title="Select preset"
+                                >
+                                    <option value="">Default</option>
+                                    {presets.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
+                            </div>
                         )}
 
                         {/* Actions */}
@@ -201,6 +218,21 @@ export function BatchQueue({
                     </div>
                 ))}
             </div>
+
+            {/* Dark theme styles for select options */}
+            <style>{`
+                select option {
+                    background-color: #18181b;
+                    color: #e4e4e7;
+                    padding: 8px 12px;
+                }
+                select option:hover,
+                select option:focus,
+                select option:checked {
+                    background-color: #27272a;
+                    color: #fbbf24;
+                }
+            `}</style>
         </div>
     );
 }
