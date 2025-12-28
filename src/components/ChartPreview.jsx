@@ -178,15 +178,15 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
         if (!localData || !localData.data) return 1;
 
         const CONTAINER_SIZE = 1080;
-        const PADDING = hasTemplate ? 40 : 128; // p-16 = 64px * 2, templates usually need some buffer
+        const PADDING = hasTemplate ? 80 : 160;
 
         // Height estimation
-        const LOGO_HEIGHT = brand?.logo ? 160 : 0;
-        const TITLE_HEIGHT = currentStyles.title ? 100 : 0;
-        const HEADER_HEIGHT = 80;
-        const ROW_HEIGHT = 65; // py-5 is 20px * 2 + text
-        const NOTE_HEIGHT = localNotes.items.length * 25 + 60; // Estimate note height
-        const SPACING = 40; // Spacing between elements
+        const LOGO_HEIGHT = brand?.logo ? 180 : 0;
+        const TITLE_HEIGHT = currentStyles.title ? 120 : 0;
+        const HEADER_HEIGHT = 100;
+        const ROW_HEIGHT = 80;
+        const NOTE_HEIGHT = localNotes.items.length * 30 + 120;
+        const SPACING = 60;
 
         const rowCount = localData.data.length;
         const estimatedHeight =
@@ -200,16 +200,17 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
         // Width estimation
         const columnCount = localData.headers.length;
-        const estimatedWidth = columnCount * 220 + PADDING; // ~220px per column
+        const estimatedWidth = columnCount * 250 + PADDING;
 
-        const hScale = CONTAINER_SIZE / estimatedHeight;
-        const wScale = CONTAINER_SIZE / estimatedWidth;
+        // Apply a 0.9x safe-zone multiplier so it doesn't touch the edges
+        const hScale = (CONTAINER_SIZE * 0.9) / estimatedHeight;
+        const wScale = (CONTAINER_SIZE * 0.9) / estimatedWidth;
 
         const bestScale = Math.min(hScale, wScale);
 
         if (bestScale < 0.98) {
-            // Clamp between 0.35 and 1.0
-            return Math.max(0.35, Math.min(1.0, bestScale));
+            // Clamp between 0.3 and 1.0
+            return Math.max(0.3, Math.min(1.0, bestScale));
         }
 
         return 1;
