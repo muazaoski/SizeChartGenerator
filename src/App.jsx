@@ -41,6 +41,7 @@ function App() {
   const [batchRenderItem, setBatchRenderItem] = useState(null); // Current item being rendered
   const [batchRenderPreset, setBatchRenderPreset] = useState(null); // Preset to use for current render
   const [isRendering, setIsRendering] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState(null); // Track which batch item is being edited
   const processingTimerRef = useRef(null);
   const batchRenderRef = useRef(null); // Ref for hidden render container
   const [chartStyles, setChartStyles] = useState({
@@ -543,6 +544,85 @@ function App() {
     }
   };
 
+  const handleSaveBatchEdit = async () => {
+    if (!editingBatchId) return;
+
+    setIsRendering(true);
+    // Give UI time to settle
+    await new Promise(r => setTimeout(r, 800));
+
+    try {
+      const chartElement = document.getElementById('chart-preview');
+      if (chartElement) {
+        // Prepare for high-quality capture (matches handleExport logic)
+        const originalStyles = {
+          width: chartElement.style.width,
+          height: chartElement.style.height,
+          transform: chartElement.style.transform,
+          className: chartElement.className,
+          position: chartElement.style.position
+        };
+
+        Object.assign(chartElement.style, {
+          width: '1080px',
+          height: '1080px',
+          maxWidth: '1080px',
+          maxHeight: '1080px',
+          transform: 'none',
+          position: 'relative'
+        });
+
+        const originalClassName = chartElement.className;
+        chartElement.className = chartElement.className.replace('aspect-square', '');
+
+        const dataUrl = await toJpeg(chartElement, {
+          quality: 0.9,
+          pixelRatio: 1.5,
+          width: 1080,
+          height: 1080,
+          backgroundColor: customTemplate ? null : '#ffffff',
+          filter: (node) => {
+            if (node.classList?.contains('export-hidden')) return false;
+            if (node.classList?.contains('opacity-5')) return false; // Dotted grid
+            if (node.classList?.contains('border') && node.classList?.contains('bg-transparent')) return false; // Safe zone border
+            return true;
+          }
+        });
+
+        // Restore styles
+        Object.assign(chartElement.style, originalStyles);
+        chartElement.className = originalClassName;
+
+        setBatchResults(prev => prev.map(result =>
+          result.id === editingBatchId
+            ? {
+              ...result,
+              chartData: JSON.parse(JSON.stringify(chartData)),
+              sku: sku,
+              exportedImage: dataUrl
+            }
+            : result
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to update batch preview:', err);
+      // Still update data even if preview fails
+      setBatchResults(prev => prev.map(result =>
+        result.id === editingBatchId
+          ? { ...result, chartData: JSON.parse(JSON.stringify(chartData)), sku: sku }
+          : result
+      ));
+    } finally {
+      setIsRendering(false);
+      setEditingBatchId(null);
+      setShowBatchReview(true);
+      // Reset editor state to clear for next potential item
+      setChartData(null);
+      setSku(null);
+      setActiveTab('upload');
+    }
+  };
+
   const tabs = [
     { id: 'upload', label: 'Upload', icon: Upload },
     { id: 'design', label: 'Design', icon: Palette, disabled: !chartData },
@@ -567,6 +647,28 @@ function App() {
         </div>
 
         <div className="flex items-center gap-4">
+          {editingBatchId && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setEditingBatchId(null);
+                  setChartData(null);
+                  setSku(null);
+                  setShowBatchReview(true);
+                }}
+                className="px-6 py-3 text-gray-500 hover:text-red-400 transition-all text-xs font-black uppercase tracking-widest"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleSaveBatchEdit}
+                className="px-6 py-3 bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-400 transition-all duration-300 flex items-center gap-3 shadow-2xl active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                Save to Batch
+              </button>
+            </div>
+          )}
           {chartData && (
             <button
               onClick={() => handleExport('jpeg')}
@@ -1038,6 +1140,7 @@ function App() {
             if (result) {
               setChartData(result.chartData);
               setSku(result.sku);
+              setEditingBatchId(id);
               setShowBatchReview(false);
             }
           }}
