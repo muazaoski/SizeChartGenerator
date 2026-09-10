@@ -56,7 +56,7 @@ async function extractDataFromLocalOCR(imageBase64) {
     return { sku: '', notes: null, tableData };
 }
 
-function parsePaddleTable(text) {
+export function parsePaddleTable(text) {
     if (!text || typeof text !== 'string') {
         return { headers: [], data: [] };
     }
@@ -65,8 +65,8 @@ function parsePaddleTable(text) {
     if (text.includes('<fcel>')) {
         rows = text
             .split(/<nl>|\r?\n/)
-            .map(row => row.split('<fcel>').map(cell => cell.trim()).filter(Boolean))
-            .filter(row => row.length > 0);
+            .map(parsePaddleTaggedRow)
+            .filter(row => row.some(Boolean));
     } else {
         rows = text
             .split(/\r?\n/)
@@ -77,20 +77,63 @@ function parsePaddleTable(text) {
 
     if (rows.length < 2) return { headers: [], data: [] };
 
-    const width = Math.max(...rows.map(row => row.length));
+    // Paddle uses <lcel> for merged/blank cells and <ecel> around empty or
+    // terminal cells. A title row can therefore be wider than the real table.
+    // Find the first row that looks like a header and has a matching data row.
+    const headerIndex = rows.findIndex((row, index) => {
+        const populatedCells = row.filter(Boolean).length;
+        return populatedCells >= 2 && rows.slice(index + 1).some(next =>
+            next.length === row.length && next.filter(Boolean).length >= 2
+        );
+    });
+
+    if (headerIndex < 0) return { headers: [], data: [] };
+
+    rows = rows.slice(headerIndex);
+
+    const width = rows[0].length;
     const usedHeaders = new Map();
     const headers = Array.from({ length: width }, (_, index) => {
-        const base = (rows[0][index] || `COL${index + 1}`).toUpperCase();
+        const base = (rows[0][index] || (index === 0 ? 'SIZE' : `COL${index + 1}`)).toUpperCase();
         const count = (usedHeaders.get(base) || 0) + 1;
         usedHeaders.set(base, count);
         return count === 1 ? base : `${base} ${count}`;
     });
 
-    const data = rows.slice(1).map(cells => Object.fromEntries(
-        headers.map((header, index) => [header, cells[index] || ''])
-    ));
+    const data = rows.slice(1)
+        .filter(cells => cells.some(Boolean))
+        .map(cells => Object.fromEntries(
+            headers.map((header, index) => [header, cells[index] || ''])
+        ));
 
     return { headers, data };
+}
+
+function parsePaddleTaggedRow(rawRow) {
+    let row = rawRow.trim();
+    if (!row) return [];
+
+    // A leading <ecel> represents an empty first cell. At the end of a row it
+    // is only a terminator, so remove that occurrence before tokenizing.
+    row = row.replace(/<ecel>\s*$/i, '');
+    row = row.replace(/^<ecel>/i, '<fcel>');
+
+    const cells = [];
+    const tokenPattern = /<(?:fcel|lcel)>(.*?)(?=<(?:fcel|lcel|ecel)>|$)/gis;
+    for (const match of row.matchAll(tokenPattern)) {
+        cells.push(cleanPaddleCell(match[1]));
+    }
+
+    while (cells.length > 0 && !cells[cells.length - 1]) cells.pop();
+    return cells;
+}
+
+function cleanPaddleCell(cell) {
+    return cell
+        .replace(/<(?:fcel|lcel|ecel)>/gi, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 /**
