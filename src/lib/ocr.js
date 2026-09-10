@@ -1,13 +1,103 @@
 // OCR API Configuration
 const OCR_API_URL = "https://ocr.muazaoski.online/ocr/extract";
 const AI_UNDERSTAND_URL = "https://ocr.muazaoski.online/ocr/understand";
+const DIRECT_LOCAL_OCR_API_URL = "http://127.0.0.1:8091/v1/chat/completions";
+const HOSTED_LOCAL_OCR_API_URL = "https://ocr.muazaoski.online/local/v1/chat/completions";
 const API_KEY = "ocr_demo_key_public_feel_free_to_use";
+
+/**
+ * Prefer the PaddleOCR model running on this PC. The VPS remains a fallback so
+ * the app still works when the local model has not been started.
+ */
+export async function extractDataFromOCR(imageBase64, apiKey) {
+    try {
+        return await extractDataFromLocalOCR(imageBase64);
+    } catch (localError) {
+        console.warn("Local PaddleOCR unavailable, using VPS OCR:", localError.message);
+        return extractDataFromRemoteOCR(imageBase64, apiKey);
+    }
+}
+
+async function extractDataFromLocalOCR(imageBase64) {
+    const imageUrl = imageBase64.startsWith('data:')
+        ? imageBase64
+        : `data:image/png;base64,${imageBase64}`;
+
+    const isLocalPage = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
+    const endpoint = isLocalPage ? DIRECT_LOCAL_OCR_API_URL : HOSTED_LOCAL_OCR_API_URL;
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        signal: AbortSignal.timeout(60000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            messages: [{
+                role: 'user',
+                content: [
+                    { type: 'image_url', image_url: { url: imageUrl } },
+                    { type: 'text', text: 'Table Recognition:' }
+                ]
+            }],
+            temperature: 0,
+            max_tokens: 2048
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`Local OCR returned ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const text = payload.choices?.[0]?.message?.content;
+    const tableData = parsePaddleTable(text);
+    if (!tableData.data.length) {
+        throw new Error('Local OCR did not detect a table');
+    }
+
+    return { sku: '', notes: null, tableData };
+}
+
+function parsePaddleTable(text) {
+    if (!text || typeof text !== 'string') {
+        return { headers: [], data: [] };
+    }
+
+    let rows;
+    if (text.includes('<fcel>')) {
+        rows = text
+            .split(/<nl>|\r?\n/)
+            .map(row => row.split('<fcel>').map(cell => cell.trim()).filter(Boolean))
+            .filter(row => row.length > 0);
+    } else {
+        rows = text
+            .split(/\r?\n/)
+            .map(row => row.trim())
+            .filter(row => row.includes('|') && !/^\s*[-:| ]+\s*$/.test(row))
+            .map(row => row.replace(/^\||\|$/g, '').split('|').map(cell => cell.trim()));
+    }
+
+    if (rows.length < 2) return { headers: [], data: [] };
+
+    const width = Math.max(...rows.map(row => row.length));
+    const usedHeaders = new Map();
+    const headers = Array.from({ length: width }, (_, index) => {
+        const base = (rows[0][index] || `COL${index + 1}`).toUpperCase();
+        const count = (usedHeaders.get(base) || 0) + 1;
+        usedHeaders.set(base, count);
+        return count === 1 ? base : `${base} ${count}`;
+    });
+
+    const data = rows.slice(1).map(cells => Object.fromEntries(
+        headers.map((header, index) => [header, cells[index] || ''])
+    ));
+
+    return { headers, data };
+}
 
 /**
  * AI-Powered Size Chart Extraction using Qwen3-VL Vision Model
  * This directly understands the image and returns structured data!
  */
-export async function extractDataFromOCR(imageBase64, apiKey) {
+async function extractDataFromRemoteOCR(imageBase64, apiKey) {
     try {
         console.log("Starting AI Size Chart Understanding...");
         const finalApiKey = apiKey || API_KEY;

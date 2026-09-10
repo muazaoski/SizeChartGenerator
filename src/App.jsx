@@ -13,7 +13,10 @@ import { BatchQueue } from './components/BatchQueue';
 import { BatchReview } from './components/BatchReview';
 import { getPresetById, presetSettingsToState } from './lib/presetStorage';
 import { toJpeg } from 'html-to-image';
+import { loadSession, saveSession } from './lib/sessionStorage';
+import { SourceReference } from './components/SourceReference';
 
+// Keep the workspace and batch drafts together in the local session.
 function App() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -30,6 +33,11 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('upload');
   const [previewZoom, setPreviewZoom] = useState(0.8);
+  const [showSource, setShowSource] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('Loading session…');
+  const canvasArea = useRef(null);
+  const [canvasFit, setCanvasFit] = useState(1);
 
   // Timer and batch states
   const [processingTime, setProcessingTime] = useState(0);
@@ -39,7 +47,6 @@ function App() {
   const [showPresetManager, setShowPresetManager] = useState(false);
   const [batchResults, setBatchResults] = useState([]);
   const [batchRenderItem, setBatchRenderItem] = useState(null); // Current item being rendered
-  const [batchRenderPreset, setBatchRenderPreset] = useState(null); // Preset to use for current render
   const [isRendering, setIsRendering] = useState(false);
   const [editingBatchId, setEditingBatchId] = useState(null); // Track which batch item is being edited
   const processingTimerRef = useRef(null);
@@ -57,6 +64,57 @@ function App() {
     note: { x: 0, y: 0, scale: 1 },
     notesContent: null
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    loadSession().then(saved => {
+      if (cancelled) return;
+      if (saved) {
+        setSelectedImage(saved.selectedImage);
+        setChartData(saved.chartData);
+        setSelectedBrand(saved.selectedBrand);
+        setCustomTemplate(saved.customTemplate);
+        setChartStyles(saved.chartStyles);
+        setSku(saved.sku);
+        setBatchQueue(saved.batchQueue.map(item => item.status === 'processing' ? { ...item, status: 'pending' } : item));
+        setBatchResults(saved.batchResults);
+        setBatchMode(saved.batchMode);
+        setEditingBatchId(saved.editingBatchId);
+        setShowBatchReview(saved.showBatchReview);
+        setActiveTab(saved.activeTab);
+        setPreviewZoom(saved.previewZoom);
+        setShowSource(saved.showSource ?? true);
+      }
+      setSaveStatus(saved ? 'Session restored' : 'Autosave on');
+      setSessionReady(true);
+    }).catch(() => {
+      if (!cancelled) { setSaveStatus('Autosave unavailable'); setSessionReady(true); }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+    let current = true;
+    setSaveStatus('Saving…');
+    // IndexedDB retains files and large image previews without localStorage limits.
+    saveSession({ selectedImage, chartData, selectedBrand, customTemplate, chartStyles, sku,
+      batchQueue, batchResults, batchMode, editingBatchId, showBatchReview, activeTab, previewZoom, showSource })
+      .then(() => { if (current) setSaveStatus('Saved on this device'); })
+      .catch(() => { if (current) setSaveStatus('Could not autosave — browser storage may be full'); });
+    return () => { current = false; };
+  }, [sessionReady, selectedImage, chartData, selectedBrand, customTemplate, chartStyles, sku,
+    batchQueue, batchResults, batchMode, editingBatchId, showBatchReview, activeTab, previewZoom, showSource]);
+
+  useEffect(() => {
+    const node = canvasArea.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setCanvasFit(Math.max(0.1, Math.min(entry.contentRect.width / 1080, (entry.contentRect.height - 100) / 1080)));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [sessionReady, chartData, showSource]);
 
   // ========== GLOBAL UNDO/REDO SYSTEM (Photoshop-style) ==========
   const historyRef = useRef([]);
@@ -259,6 +317,16 @@ function App() {
       i.id === id ? { ...i, status: 'processing' } : i
     ));
 
+    // Snapshot the design before OCR starts so each result owns its settings.
+    const preset = item.presetId ? getPresetById(item.presetId) : null;
+    const presetState = preset ? presetSettingsToState(preset.settings) : null;
+    const design = structuredClone({
+      chartStyles: presetState ? presetState.chartStyles : chartStyles,
+      customTemplate: presetState ? presetState.customTemplate : customTemplate,
+      selectedBrand: presetState
+        ? (presetState.brandLogo ? { id: 'custom', logo: presetState.brandLogo } : null)
+        : selectedBrand
+    });
     const startTime = Date.now();
     try {
       const { tableData, sku: extractedSku } = await extractDataFromOCR(item.preview, apiKey);
@@ -282,8 +350,9 @@ function App() {
         sku: extractedSku,
         processingTime: elapsed,
         status: 'done',
-        approved: false,
+        includeInExport: true,
         exportedImage: null,
+        design,
         presetId: item.presetId || null // Store which preset was selected
       };
 
@@ -316,18 +385,7 @@ function App() {
     setIsRendering(true);
 
     for (const result of extractedResults) {
-      // Get preset for this item if one was selected
-      let presetState = null;
-      if (result.presetId) {
-        const preset = getPresetById(result.presetId);
-        if (preset) {
-          presetState = presetSettingsToState(preset.settings);
-        }
-      }
-
-      // Set current render item and its preset
       setBatchRenderItem(result);
-      setBatchRenderPreset(presetState);
 
       // Wait for React to render the ChartPreview
       await new Promise(r => setTimeout(r, 800));
@@ -352,17 +410,47 @@ function App() {
     }
 
     setBatchRenderItem(null);
-    setBatchRenderPreset(null);
     setIsRendering(false);
 
     // Show review after all processed and rendered
     setShowBatchReview(true);
   };
 
-  const handleApproveResult = (id, approved) => {
+  const handleToggleExport = (id, includeInExport) => {
     setBatchResults(prev => prev.map(r =>
-      r.id === id ? { ...r, approved } : r
+      r.id === id ? { ...r, includeInExport } : r
     ));
+  };
+
+  const handleApplyDesignToBatch = async (sourceId, targetIds) => {
+    const source = batchResults.find(r => r.id === sourceId);
+    if (!source?.design) throw new Error('Open and save the source chart first.');
+    setIsRendering(true);
+    try {
+      const updates = [];
+      for (const target of batchResults.filter(r => targetIds.includes(r.id) && r.id !== sourceId)) {
+        const design = structuredClone(source.design);
+        // Text belongs to the target chart; only its visual settings are copied.
+        design.chartStyles.title = target.design?.chartStyles.title ?? '';
+        design.chartStyles.notesContent = structuredClone(target.design?.chartStyles.notesContent ?? null);
+        const next = { ...target, design };
+        setBatchRenderItem(next);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        await document.fonts.ready;
+        if (!batchRenderRef.current) throw new Error('Unable to render the selected charts.');
+        await Promise.all(Array.from(batchRenderRef.current.querySelectorAll('img')).map(img => img.decode()));
+        const exportedImage = await toJpeg(batchRenderRef.current, {
+          quality: 0.95, pixelRatio: 2, backgroundColor: '#ffffff',
+          filter: node => !node.classList?.contains('export-hidden')
+        });
+        updates.push({ ...next, exportedImage });
+      }
+      // Commit together: failed captures leave all original designs intact.
+      setBatchResults(previous => previous.map(result => updates.find(r => r.id === result.id) || result));
+    } finally {
+      setBatchRenderItem(null);
+      setIsRendering(false);
+    }
   };
 
   const handleUpdateBatchPreset = (id, presetId) => {
@@ -547,6 +635,21 @@ function App() {
   const handleSaveBatchEdit = async () => {
     if (!editingBatchId) return;
 
+    const savedState = captureState();
+    const savedEdit = {
+      chartData: savedState.chartData,
+      sku: savedState.sku,
+      design: {
+        chartStyles: savedState.chartStyles,
+        customTemplate: savedState.customTemplate,
+        selectedBrand: savedState.selectedBrand
+      },
+      exportedImage: null
+    };
+    // Persist edits even if generating the preview fails.
+    setBatchResults(prev => prev.map(result =>
+      result.id === editingBatchId ? { ...result, ...savedEdit } : result
+    ));
     setIsRendering(true);
     // Give UI time to settle
     await new Promise(r => setTimeout(r, 800));
@@ -597,8 +700,7 @@ function App() {
           result.id === editingBatchId
             ? {
               ...result,
-              chartData: JSON.parse(JSON.stringify(chartData)),
-              sku: sku,
+              ...savedEdit,
               exportedImage: dataUrl
             }
             : result
@@ -606,12 +708,7 @@ function App() {
       }
     } catch (err) {
       console.error('Failed to update batch preview:', err);
-      // Still update data even if preview fails
-      setBatchResults(prev => prev.map(result =>
-        result.id === editingBatchId
-          ? { ...result, chartData: JSON.parse(JSON.stringify(chartData)), sku: sku }
-          : result
-      ));
+
     } finally {
       setIsRendering(false);
       setEditingBatchId(null);
@@ -630,6 +727,8 @@ function App() {
     { id: 'data', label: 'Data', icon: Table, disabled: !chartData },
   ];
 
+  if (!sessionReady) return <div className="h-screen bg-black text-white grid place-items-center">Loading your session…</div>;
+
   return (
     <div className="h-screen bg-black text-gray-100 flex flex-col overflow-hidden selection:bg-yellow-500 selection:text-black">
       {/* Top Navigation Bar */}
@@ -642,11 +741,14 @@ function App() {
                 SizeChart<span className="text-yellow-500">PLS</span>
               </h1>
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Size chart generator</p>
+              <p role="status" className="text-[10px] text-zinc-400 mt-1">{saveStatus}</p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
+          {chartData && selectedImage && <button onClick={() => setShowSource(v => !v)} aria-pressed={showSource} className="text-xs text-yellow-400 px-2 py-2">{showSource ? 'Hide source' : 'Show source'}</button>}
+          {!!batchResults.length && !editingBatchId && <button onClick={() => setShowBatchReview(true)} className="text-xs text-zinc-300">Review batch</button>}
           {editingBatchId && (
             <div className="flex items-center gap-2">
               <button
@@ -665,7 +767,7 @@ function App() {
                 className="px-6 py-3 bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-emerald-400 transition-all duration-300 flex items-center gap-3 shadow-2xl active:scale-95"
               >
                 <Sparkles className="w-4 h-4" />
-                Save to Batch
+                Save
               </button>
             </div>
           )}
@@ -1037,7 +1139,8 @@ function App() {
         </aside>
 
         {/* Preview Area */}
-        <main className="flex-1 bg-black/60 flex items-center justify-center p-6 overflow-hidden relative">
+        {chartData && selectedImage && showSource && <SourceReference key={selectedImage} src={selectedImage} />}
+        <main ref={canvasArea} className="flex-1 min-w-0 bg-black/60 flex items-center justify-center p-3 overflow-hidden relative">
           {!chartData ? (
             <div className="text-center max-w-sm">
               <div className="w-32 h-32 mx-auto mb-8 rounded-[40px] bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl relative">
@@ -1055,7 +1158,7 @@ function App() {
             <div className="w-full h-full flex flex-col items-center justify-center relative">
               <div
                 className="transition-transform duration-200 ease-out origin-center"
-                style={{ transform: `scale(${previewZoom})` }}
+                style={{ transform: `scale(${showSource && selectedImage ? canvasFit * previewZoom / 0.8 : previewZoom})` }}
               >
                 <ChartPreview
                   id="chart-preview"
@@ -1076,9 +1179,9 @@ function App() {
                 />
               </div>
 
-              {/* Zoom Controls Overlay - Compact by default, expands on hover */}
+              {/* Zoom controls remain visible on every background */}
               <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30">
-                <div className="flex items-center gap-1 px-2 py-2 bg-neutral-900/30 backdrop-blur-md border border-white/5 rounded-full shadow-2xl opacity-30 hover:opacity-100 hover:bg-neutral-900/90 hover:px-6 hover:py-3 hover:gap-6 transition-all duration-500 ease-out group">
+                <div className="flex items-center gap-2 px-3 py-2 bg-neutral-900 border border-white/25 rounded-full shadow-2xl">
                   <button
                     onClick={() => setPreviewZoom(prev => Math.max(0.2, prev - 0.1))}
                     className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all active:scale-90"
@@ -1086,17 +1189,18 @@ function App() {
                   >
                     <ZoomOut className="w-5 h-5" />
                   </button>
-                  <div className="flex items-center gap-0 w-0 overflow-hidden opacity-0 group-hover:opacity-100 group-hover:w-44 group-hover:gap-4 transition-all duration-500 px-0 border-white/10 group-hover:px-4 group-hover:border-x">
+                  <div className="flex items-center gap-2 px-2 border-x border-white/20">
                     <input
                       type="range"
+                      aria-label="Canvas zoom"
                       min="0.2"
                       max="1.5"
                       step="0.05"
                       value={previewZoom}
                       onChange={(e) => setPreviewZoom(parseFloat(e.target.value))}
-                      className="w-28 accent-yellow-500 h-1.5 rounded-full cursor-pointer"
+                      className="w-12 xl:w-28 accent-yellow-500 h-1.5 rounded-full cursor-pointer"
                     />
-                    <span className="text-[10px] font-black text-white w-10 text-center">{Math.round(previewZoom * 100)}%</span>
+                    <span className="text-sm font-bold tabular-nums text-white w-12 text-center">{Math.round(previewZoom * 100)}%</span>
                   </div>
                   <button
                     onClick={() => setPreviewZoom(prev => Math.min(1.5, prev + 0.1))}
@@ -1105,10 +1209,10 @@ function App() {
                   >
                     <ZoomIn className="w-5 h-5" />
                   </button>
-                  <div className="w-0 group-hover:w-px h-6 bg-white/10 transition-all duration-500" />
+                  <div className="w-px h-6 bg-white/20" />
                   <button
                     onClick={() => setPreviewZoom(0.8)}
-                    className="p-2 rounded-full hover:bg-white/10 text-yellow-500 hover:text-yellow-400 transition-all active:scale-90 opacity-0 group-hover:opacity-100 w-0 group-hover:w-auto overflow-hidden"
+                    className="p-2 rounded-full hover:bg-white/10 text-yellow-400 hover:text-yellow-300 transition-colors active:scale-90"
                     title="Reset Workspace"
                   >
                     <RotateCcw className="w-4 h-4" />
@@ -1138,8 +1242,18 @@ function App() {
           onEdit={(id) => {
             const result = batchResults.find(r => r.id === id);
             if (result) {
-              setChartData(result.chartData);
+              const design = structuredClone(result.design);
+              setChartData(structuredClone(result.chartData));
               setSku(result.sku);
+              setChartStyles(design.chartStyles);
+              setCustomTemplate(design.customTemplate);
+              setSelectedBrand(design.selectedBrand);
+              setSelectedImage(result.preview);
+              setSelectedElement(null);
+              // Undo must never restore another batch item's state.
+              historyRef.current = [];
+              historyIndexRef.current = -1;
+              isUndoRedoAction.current = false;
               setEditingBatchId(id);
               setShowBatchReview(false);
             }
@@ -1147,7 +1261,9 @@ function App() {
           onReprocess={(id) => {
             handleProcessSingle(id);
           }}
-          onApprove={handleApproveResult}
+          onToggleExport={handleToggleExport}
+          onApplyDesign={handleApplyDesignToBatch}
+          saveStatus={saveStatus}
         />
       )}
 
@@ -1164,13 +1280,16 @@ function App() {
         >
           <div ref={batchRenderRef} style={{ width: '1080px', height: '1080px' }}>
             <ChartPreview
+              key={batchRenderItem.id}
+              id="batch-chart-preview"
               data={batchRenderItem.chartData}
-              brand={batchRenderPreset?.brandLogo ? { id: 'custom', logo: batchRenderPreset.brandLogo } : selectedBrand}
-              template={batchRenderPreset?.customTemplate || customTemplate}
-              styles={batchRenderPreset?.chartStyles || chartStyles}
+              brand={batchRenderItem.design.selectedBrand}
+              template={batchRenderItem.design.customTemplate}
+              styles={batchRenderItem.design.chartStyles}
+              notes={batchRenderItem.design.chartStyles.notesContent}
               sku={batchRenderItem.sku}
               selectedElement={null}
-              onSelectElement={() => { }}
+              setSelectedElement={() => { }}
               onPositionChange={() => { }}
             />
           </div>

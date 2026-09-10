@@ -6,6 +6,7 @@ const EditableText = memo(({ value, onChange, className = "", style = {}, tag = 
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(value);
     const inputRef = useRef(null);
+    const originalValue = useRef(value);
 
     useEffect(() => {
         setEditValue(value);
@@ -21,11 +22,13 @@ const EditableText = memo(({ value, onChange, className = "", style = {}, tag = 
     const handleDoubleClick = (e) => {
         e.stopPropagation();
         e.preventDefault();
+        originalValue.current = value;
         setIsEditing(true);
     };
 
     const handleChange = (e) => {
         setEditValue(e.target.value);
+        onChange(e.target.value);
     };
 
     const handleBlur = () => {
@@ -40,7 +43,8 @@ const EditableText = memo(({ value, onChange, className = "", style = {}, tag = 
             e.preventDefault();
             inputRef.current?.blur();
         } else if (e.key === 'Escape') {
-            setEditValue(value);
+            setEditValue(originalValue.current);
+            onChange(originalValue.current);
             setIsEditing(false);
         }
     };
@@ -94,6 +98,293 @@ const EditableText = memo(({ value, onChange, className = "", style = {}, tag = 
         </Tag>
     );
 });
+
+    const BoundingBox = memo(({ children, elementType, className = "", selectedElement, hoveredElement, styles, currentStyles, autoScale, isDragging, dragStart, onPositionChange, handleElementMouseDown, setHoveredElement }) => {
+        const isSelected = selectedElement === elementType;
+        const isHovered = hoveredElement === elementType;
+        const displayClass = className.includes('block') ? '' : 'inline-block';
+
+        const handleScaleStart = (e, corner) => {
+            e.stopPropagation();
+            e.preventDefault();
+
+            isDragging.current = true;
+            const elementStyles = styles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
+
+            dragStart.current = {
+                type: 'scale',
+                corner,
+                startX: e.clientX,
+                startY: e.clientY,
+                startScale: elementStyles.scale || 1,
+                elementType: elementType
+            };
+
+            document.addEventListener('mousemove', handleTransformMove);
+            document.addEventListener('mouseup', handleTransformMouseUp);
+        };
+
+        const handleRotateStart = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+
+            const element = e.currentTarget.closest('.gpu-accelerated');
+            if (!element) return;
+
+            const rect = element.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            isDragging.current = true;
+            const elementStyles = styles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
+
+            dragStart.current = {
+                type: 'rotate',
+                centerX,
+                centerY,
+                startAngle: Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI),
+                currentRotation: elementStyles.rotate || 0,
+                elementType: elementType
+            };
+
+            document.addEventListener('mousemove', handleTransformMove);
+            document.addEventListener('mouseup', handleTransformMouseUp);
+        };
+
+        const handleTransformMove = (e) => {
+            if (!isDragging.current) return;
+            const ds = dragStart.current;
+            const elementType = ds.elementType;
+
+            if (ds.type === 'scale') {
+                const diffX = e.clientX - ds.startX;
+                const diffY = e.clientY - ds.startY;
+
+                let delta = 0;
+                const c = ds.corner;
+
+                // Determine scaling delta based on corner
+                if (c === 'se') delta = diffX + diffY;
+                else if (c === 'nw') delta = -(diffX + diffY);
+                else if (c === 'ne') delta = diffX - diffY;
+                else if (c === 'sw') delta = -diffX + diffY;
+                else if (c === 'n') delta = -diffY;
+                else if (c === 's') delta = diffY;
+                else if (c === 'e') delta = diffX;
+                else if (c === 'w') delta = -diffX;
+
+                const newScale = Math.max(0.05, ds.startScale + (delta * 0.005));
+
+                requestAnimationFrame(() => {
+                    const updatedStyles = {
+                        ...styles,
+                        [elementType]: {
+                            ...styles[elementType],
+                            scale: newScale
+                        }
+                    };
+                    onPositionChange(updatedStyles);
+                });
+            } else if (ds.type === 'rotate') {
+                const angle = Math.atan2(e.clientY - ds.centerY, e.clientX - ds.centerX) * (180 / Math.PI);
+                let newRotate = ds.currentRotation + (angle - ds.startAngle);
+
+                // Snap to 45 degree increments if shift is held
+                if (e.shiftKey) {
+                    newRotate = Math.round(newRotate / 45) * 45;
+                }
+
+                requestAnimationFrame(() => {
+                    const updatedStyles = {
+                        ...styles,
+                        [elementType]: {
+                            ...styles[elementType],
+                            rotate: newRotate
+                        }
+                    };
+                    onPositionChange(updatedStyles);
+                });
+            }
+        };
+
+        const handleTransformMouseUp = () => {
+            isDragging.current = false;
+            document.removeEventListener('mousemove', handleTransformMove);
+            document.removeEventListener('mouseup', handleTransformMouseUp);
+        };
+
+        const elementStyles = currentStyles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
+        const rotation = elementStyles.rotate || 0;
+        const scale = elementStyles.scale || 1;
+        const x = elementStyles.x || 0;
+        const y = elementStyles.y || 0;
+
+        // Inverse scale for handles and outlines to keep them consistent
+        // We also account for the container's autoScale to keep handles readable
+        const combinedScale = scale * (autoScale || 1);
+        const inverseScale = 1 / combinedScale;
+        const handleSize = 10 * inverseScale;
+        const handleOffset = -5 * inverseScale;
+        const outlineWidth = 2 * inverseScale;
+
+        return (
+            <div
+                className={cn(
+                    "gpu-accelerated export-no-ring transition-transform duration-75 ease-out",
+                    displayClass,
+                    isSelected && "z-40",
+                    className
+                )}
+                onMouseDown={(e) => handleElementMouseDown(e, elementType)}
+                onMouseEnter={() => setHoveredElement(elementType)}
+                onMouseLeave={() => setHoveredElement(null)}
+                style={{
+                    cursor: isSelected ? 'move' : 'pointer',
+                    transformOrigin: 'center center',
+                    transform: `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${scale})`
+                }}
+            >
+                {children}
+
+                {/* Editor decoration stays separate from the exported artwork. */}
+                {(isSelected || isHovered) && (
+                    <div
+                        aria-hidden="true"
+                        className="export-hidden absolute inset-0 pointer-events-none"
+                        style={{
+                            outline: `${outlineWidth}px solid ${isSelected ? '#fbbf24' : 'rgba(251, 191, 36, 0.5)'}`,
+                            outlineOffset: `${2 * inverseScale}px`
+                        }}
+                    />
+                )}
+
+                {/* Transform handles - only show when selected */}
+                {isSelected && (
+                    <>
+                        {/* Corner handles */}
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                top: `${handleOffset}px`,
+                                left: `${handleOffset}px`,
+                                cursor: 'nw-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 'nw')}
+                        />
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                top: `${handleOffset}px`,
+                                right: `${handleOffset}px`,
+                                cursor: 'ne-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 'ne')}
+                        />
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                bottom: `${handleOffset}px`,
+                                left: `${handleOffset}px`,
+                                cursor: 'sw-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 'sw')}
+                        />
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                bottom: `${handleOffset}px`,
+                                right: `${handleOffset}px`,
+                                cursor: 'se-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 'se')}
+                        />
+
+                        {/* Edge handles */}
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                top: `${handleOffset}px`,
+                                left: '50%',
+                                marginLeft: `${handleOffset}px`,
+                                cursor: 'n-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 'n')}
+                        />
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                bottom: `${handleOffset}px`,
+                                left: '50%',
+                                marginLeft: `${handleOffset}px`,
+                                cursor: 's-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 's')}
+                        />
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                left: `${handleOffset}px`,
+                                top: '50%',
+                                marginTop: `${handleOffset}px`,
+                                cursor: 'w-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 'w')}
+                        />
+                        <div
+                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
+                            style={{
+                                width: `${handleSize}px`,
+                                height: `${handleSize}px`,
+                                right: `${handleOffset}px`,
+                                top: '50%',
+                                marginTop: `${handleOffset}px`,
+                                cursor: 'e-resize'
+                            }}
+                            onMouseDown={(e) => handleScaleStart(e, 'e')}
+                        />
+
+                        {/* Center move icon */}
+                        <div className="export-hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                            <svg width={20 * inverseScale} height={20 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500">
+                                <path d="M12 2L12 22M2 12L22 12M12 2L8 6M12 2L16 6M12 22L8 18M12 22L16 18M2 12L6 8M2 12L6 16M22 12L18 8M22 12L18 16" />
+                            </svg>
+                        </div>
+
+                        {/* Rotate handle */}
+                        <div
+                            className="export-hidden absolute left-1/2 -translate-x-1/2 cursor-grab flex items-center justify-center bg-white rounded-full border border-amber-500 shadow-md"
+                            style={{
+                                width: `${handleSize * 2.5}px`,
+                                height: `${handleSize * 2.5}px`,
+                                top: `${handleOffset * 6}px`
+                            }}
+                            onMouseDown={handleRotateStart}
+                            title="Rotate"
+                        >
+                            <svg width={14 * inverseScale} height={14 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500">
+                                <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.12 0 4.07.74 5.61 1.97" />
+                                <path d="M21 3v6h-6" />
+                            </svg>
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    });
 
 export function ChartPreview({ data, brand, template, styles = {}, selectedElement, setSelectedElement, onPositionChange, onExport, id = "chart-preview", className = "", sku = null, onDataChange, onSkuChange, notes: propNotes, onNotesChange }) {
     const containerRef = useRef(null);
@@ -434,282 +725,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
     const edgeHandleStyle = "w-2 h-2 bg-white border-2 border-blue-500 z-10";
 
     // Bounding Box Component with Transform Handles
-    const BoundingBox = memo(({ children, elementType, className = "" }) => {
-        const isSelected = selectedElement === elementType;
-        const isHovered = hoveredElement === elementType;
-        const displayClass = className.includes('block') ? '' : 'inline-block';
 
-        const handleScaleStart = (e, corner) => {
-            e.stopPropagation();
-            e.preventDefault();
-
-            isDragging.current = true;
-            const elementStyles = styles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
-
-            dragStart.current = {
-                type: 'scale',
-                corner,
-                startX: e.clientX,
-                startY: e.clientY,
-                startScale: elementStyles.scale || 1,
-                elementType: elementType
-            };
-
-            document.addEventListener('mousemove', handleTransformMove);
-            document.addEventListener('mouseup', handleTransformMouseUp);
-        };
-
-        const handleRotateStart = (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-
-            const element = e.currentTarget.closest('.gpu-accelerated');
-            if (!element) return;
-
-            const rect = element.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-
-            isDragging.current = true;
-            const elementStyles = styles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
-
-            dragStart.current = {
-                type: 'rotate',
-                centerX,
-                centerY,
-                startAngle: Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI),
-                currentRotation: elementStyles.rotate || 0,
-                elementType: elementType
-            };
-
-            document.addEventListener('mousemove', handleTransformMove);
-            document.addEventListener('mouseup', handleTransformMouseUp);
-        };
-
-        const handleTransformMove = (e) => {
-            if (!isDragging.current) return;
-            const ds = dragStart.current;
-            const elementType = ds.elementType;
-
-            if (ds.type === 'scale') {
-                const diffX = e.clientX - ds.startX;
-                const diffY = e.clientY - ds.startY;
-
-                let delta = 0;
-                const c = ds.corner;
-
-                // Determine scaling delta based on corner
-                if (c === 'se') delta = diffX + diffY;
-                else if (c === 'nw') delta = -(diffX + diffY);
-                else if (c === 'ne') delta = diffX - diffY;
-                else if (c === 'sw') delta = -diffX + diffY;
-                else if (c === 'n') delta = -diffY;
-                else if (c === 's') delta = diffY;
-                else if (c === 'e') delta = diffX;
-                else if (c === 'w') delta = -diffX;
-
-                const newScale = Math.max(0.05, ds.startScale + (delta * 0.005));
-
-                requestAnimationFrame(() => {
-                    const updatedStyles = {
-                        ...styles,
-                        [elementType]: {
-                            ...styles[elementType],
-                            scale: newScale
-                        }
-                    };
-                    onPositionChange(updatedStyles);
-                });
-            } else if (ds.type === 'rotate') {
-                const angle = Math.atan2(e.clientY - ds.centerY, e.clientX - ds.centerX) * (180 / Math.PI);
-                let newRotate = ds.currentRotation + (angle - ds.startAngle);
-
-                // Snap to 45 degree increments if shift is held
-                if (e.shiftKey) {
-                    newRotate = Math.round(newRotate / 45) * 45;
-                }
-
-                requestAnimationFrame(() => {
-                    const updatedStyles = {
-                        ...styles,
-                        [elementType]: {
-                            ...styles[elementType],
-                            rotate: newRotate
-                        }
-                    };
-                    onPositionChange(updatedStyles);
-                });
-            }
-        };
-
-        const handleTransformMouseUp = () => {
-            isDragging.current = false;
-            document.removeEventListener('mousemove', handleTransformMove);
-            document.removeEventListener('mouseup', handleTransformMouseUp);
-        };
-
-        const elementStyles = currentStyles[elementType] || { x: 0, y: 0, scale: 1, rotate: 0 };
-        const rotation = elementStyles.rotate || 0;
-        const scale = elementStyles.scale || 1;
-        const x = elementStyles.x || 0;
-        const y = elementStyles.y || 0;
-
-        // Inverse scale for handles and outlines to keep them consistent
-        // We also account for the container's autoScale to keep handles readable
-        const combinedScale = scale * (autoScale || 1);
-        const inverseScale = 1 / combinedScale;
-        const handleSize = 10 * inverseScale;
-        const handleOffset = -5 * inverseScale;
-        const outlineWidth = 2 * inverseScale;
-
-        return (
-            <div
-                className={cn(
-                    "gpu-accelerated export-no-ring transition-transform duration-75 ease-out",
-                    displayClass,
-                    isSelected && "z-40",
-                    className
-                )}
-                onMouseDown={(e) => handleElementMouseDown(e, elementType)}
-                onMouseEnter={() => setHoveredElement(elementType)}
-                onMouseLeave={() => setHoveredElement(null)}
-                style={{
-                    cursor: isSelected ? 'move' : 'pointer',
-                    transformOrigin: 'center center',
-                    transform: `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${scale})`,
-                    outline: isSelected ? `${outlineWidth}px solid #fbbf24` : isHovered ? `${outlineWidth}px solid rgba(251, 191, 36, 0.5)` : 'none',
-                    outlineOffset: `${2 * inverseScale}px`
-                }}
-            >
-                {children}
-
-                {/* Transform handles - only show when selected */}
-                {isSelected && (
-                    <>
-                        {/* Corner handles */}
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                top: `${handleOffset}px`,
-                                left: `${handleOffset}px`,
-                                cursor: 'nw-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 'nw')}
-                        />
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                top: `${handleOffset}px`,
-                                right: `${handleOffset}px`,
-                                cursor: 'ne-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 'ne')}
-                        />
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                bottom: `${handleOffset}px`,
-                                left: `${handleOffset}px`,
-                                cursor: 'sw-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 'sw')}
-                        />
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                bottom: `${handleOffset}px`,
-                                right: `${handleOffset}px`,
-                                cursor: 'se-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 'se')}
-                        />
-
-                        {/* Edge handles */}
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                top: `${handleOffset}px`,
-                                left: '50%',
-                                marginLeft: `${handleOffset}px`,
-                                cursor: 'n-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 'n')}
-                        />
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                bottom: `${handleOffset}px`,
-                                left: '50%',
-                                marginLeft: `${handleOffset}px`,
-                                cursor: 's-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 's')}
-                        />
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                left: `${handleOffset}px`,
-                                top: '50%',
-                                marginTop: `${handleOffset}px`,
-                                cursor: 'w-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 'w')}
-                        />
-                        <div
-                            className="export-hidden absolute bg-white border border-amber-500 z-50 shadow-sm"
-                            style={{
-                                width: `${handleSize}px`,
-                                height: `${handleSize}px`,
-                                right: `${handleOffset}px`,
-                                top: '50%',
-                                marginTop: `${handleOffset}px`,
-                                cursor: 'e-resize'
-                            }}
-                            onMouseDown={(e) => handleScaleStart(e, 'e')}
-                        />
-
-                        {/* Center move icon */}
-                        <div className="export-hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                            <svg width={20 * inverseScale} height={20 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500">
-                                <path d="M12 2L12 22M2 12L22 12M12 2L8 6M12 2L16 6M12 22L8 18M12 22L16 18M2 12L6 8M2 12L6 16M22 12L18 8M22 12L18 16" />
-                            </svg>
-                        </div>
-
-                        {/* Rotate handle */}
-                        <div
-                            className="export-hidden absolute left-1/2 -translate-x-1/2 cursor-grab flex items-center justify-center bg-white rounded-full border border-amber-500 shadow-md"
-                            style={{
-                                width: `${handleSize * 2.5}px`,
-                                height: `${handleSize * 2.5}px`,
-                                top: `${handleOffset * 6}px`
-                            }}
-                            onMouseDown={handleRotateStart}
-                            title="Rotate"
-                        >
-                            <svg width={14 * inverseScale} height={14 * inverseScale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500">
-                                <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.12 0 4.07.74 5.61 1.97" />
-                                <path d="M21 3v6h-6" />
-                            </svg>
-                        </div>
-                    </>
-                )}
-            </div>
-        );
-    });
 
     return (
         <div className="w-full h-full flex justify-center items-center relative">
@@ -750,7 +766,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
                         {/* Brand Logo */}
                         {brand && brand.logo && (
-                            <BoundingBox elementType="logo" className="mb-6 flex justify-center">
+                            <BoundingBox {...{ selectedElement, hoveredElement, styles, currentStyles, autoScale, isDragging, dragStart, onPositionChange, handleElementMouseDown, setHoveredElement }} elementType="logo" className="mb-6 flex justify-center">
                                 <img
                                     src={brand.logo}
                                     alt={brand.name}
@@ -764,7 +780,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
 
                         {/* Optional Title */}
                         {currentStyles.title && (
-                            <BoundingBox elementType="title" className="mb-8 flex justify-center">
+                            <BoundingBox {...{ selectedElement, hoveredElement, styles, currentStyles, autoScale, isDragging, dragStart, onPositionChange, handleElementMouseDown, setHoveredElement }} elementType="title" className="mb-8 flex justify-center">
                                 <h2
                                     className="text-5xl font-bold uppercase tracking-wider text-center"
                                     style={{ color: currentStyles.textColor }}
@@ -775,7 +791,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                         )}
 
                         {/* The Table */}
-                        <BoundingBox elementType="table" className="w-full">
+                        <BoundingBox {...{ selectedElement, hoveredElement, styles, currentStyles, autoScale, isDragging, dragStart, onPositionChange, handleElementMouseDown, setHoveredElement }} elementType="table" className="w-full">
                             <div
                                 className="overflow-hidden rounded-2xl w-full"
                                 style={{
@@ -824,7 +840,7 @@ export function ChartPreview({ data, brand, template, styles = {}, selectedEleme
                         </BoundingBox>
 
                         {/* Note Section */}
-                        <BoundingBox elementType="note" className="w-full mt-4">
+                        <BoundingBox {...{ selectedElement, hoveredElement, styles, currentStyles, autoScale, isDragging, dragStart, onPositionChange, handleElementMouseDown, setHoveredElement }} elementType="note" className="w-full mt-4">
                             <div
                                 className="p-4 rounded-lg text-white text-left"
                                 style={{ backgroundColor: currentStyles.headerColor }}

@@ -39,8 +39,16 @@ User uploads image → Qwen3-VL understands it → Returns structured JSON → P
 ```
 
 ### API Endpoints Used:
+- **Local PaddleOCR (hosted relay)**: `https://ocr.muazaoski.online/local/v1/chat/completions`
 - **AI Understanding**: `https://ocr.muazaoski.online/ocr/understand?preset=size_chart`
 - **Fallback OCR**: `https://ocr.muazaoski.online/ocr/extract`
+
+The hosted relay reaches PaddleOCR on the Windows workstation through a reverse
+SSH tunnel. `SizeChartPLS Local OCR` starts llama.cpp and `SizeChartPLS OCR
+Tunnel` keeps the tunnel connected after login and network interruptions. The
+public relay only accepts browser requests from `chart.muazaoski.online` and the
+local Vite development origins. If the workstation is unavailable, the frontend
+automatically falls back to the VPS OCR endpoints.
 
 ### View AI Logs:
 ```bash

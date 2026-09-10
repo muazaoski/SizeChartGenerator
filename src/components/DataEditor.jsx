@@ -10,8 +10,15 @@ export function DataEditor({ initialData, onSave }) {
     const historyIndex = useRef(0);
     const [canUndo, setCanUndo] = useState(false);
     const [canRedo, setCanRedo] = useState(false);
+    const published = useRef(null);
+
+    const publish = (next) => {
+        published.current = next;
+        onSave(next);
+    };
 
     useEffect(() => {
+        if (initialData === published.current) return;
         setHeaders(initialData.headers || []);
         setData(initialData.data || []);
         history.current = [{ headers: initialData.headers || [], data: initialData.data || [] }];
@@ -37,7 +44,7 @@ export function DataEditor({ initialData, onSave }) {
             historyIndex.current = historyIndex.current - 1;
             setCanUndo(historyIndex.current > 0);
             setCanRedo(true);
-            onSave({ headers: previousState.headers, data: previousState.data });
+            publish({ headers: previousState.headers, data: previousState.data });
         }
     };
 
@@ -49,7 +56,7 @@ export function DataEditor({ initialData, onSave }) {
             historyIndex.current = historyIndex.current + 1;
             setCanUndo(true);
             setCanRedo(historyIndex.current < history.current.length - 1);
-            onSave({ headers: nextState.headers, data: nextState.data });
+            publish({ headers: nextState.headers, data: nextState.data });
         }
     };
 
@@ -70,15 +77,15 @@ export function DataEditor({ initialData, onSave }) {
         addToHistory(newHeaders, newData);
         setHeaders(newHeaders);
         setData(newData);
+        publish({ headers: newHeaders, data: newData });
     };
 
     const handleDataChange = (rowIndex, header, value) => {
-        const newData = [...data];
-        if (!newData[rowIndex]) newData[rowIndex] = {};
-        newData[rowIndex][header] = value;
+        const newData = data.map((row, index) => index === rowIndex ? { ...row, [header]: value } : row);
 
         addToHistory(headers, newData);
         setData(newData);
+        publish({ headers, data: newData });
     };
 
     const addRow = () => {
